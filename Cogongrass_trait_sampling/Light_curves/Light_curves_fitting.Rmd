@@ -1,0 +1,128 @@
+---
+title: "Light Curves"
+output: html_notebook
+---
+
+ 
+# Setup
+```{r}
+## Libraries
+library(dplyr)
+library(ggplot2)
+
+## Read in raw data
+light_flist <- list()
+light_flist <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Light_curves/")
+raw_data_light <- list()
+
+problem_files <- c("tess-ex-leaf-2","tess-ex-leaf-3", "Light_curves_fitting.nb.html",  "Light_curves_fitting.Rmd",  "tess-ex-leaf-4",  "tess-feild-curve-7")
+
+good_i_values <- c()
+for (i in seq_along(light_flist)){
+  print(i)
+  if(!(light_flist[i] %in% problem_files)){
+    good_i_values <-c(good_i_values, i)
+    file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Light_curves/", light_flist[i], sep= "")
+    raw_data_light[[i]] <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+  }
+}
+
+
+## Do QA/QC on data (by hand)
+ tmp<- raw_data_light[[3]]
+ tmp$Name <- light_flist[[3]]
+ tmp$type <- "ex"
+ raw_data_light[[3]] <- tmp[-c(1,4, 13:26), ]
+ 
+ tmp<- raw_data_light[[7]]
+ tmp$Name <- light_flist[[7]]
+ tmp$type <- "ex"
+ raw_data_light[[7]] <- tmp[-c(8,10), ]
+ 
+ tmp<- raw_data_light[[8]]
+ tmp$Name <- light_flist[[8]]
+ tmp$type <- "field"
+ raw_data_light[[8]] <- tmp
+ 
+ tmp<- raw_data_light[[9]]
+ tmp$Name <- light_flist[[9]]
+ tmp$type <- "field"
+ raw_data_light[[9]] <- tmp
+ 
+ tmp<- raw_data_light[[10]]
+ tmp$Name <- light_flist[[10]]
+ tmp$type <- "field"
+ raw_data_light[[10]] <- tmp[-c(18),]
+ 
+ tmp<- raw_data_light[[12]]
+ tmp$Name <- light_flist[[12]]
+ tmp$type <- "field"
+ raw_data_light[[12]] <- tmp
+ 
+ tmp<- raw_data_light[[13]]
+ tmp$Name <- light_flist[[13]]
+ tmp$type <- "field"
+ raw_data_light[[13]] <- tmp
+ 
+ tmp<- raw_data_light[[14]]
+ tmp$Name <- light_flist[[14]]
+ tmp$type <- "field"
+ raw_data_light[[14]] <- tmp[-c(1), ]
+ 
+ tmp<- raw_data_light[[15]]
+ tmp$Name <- light_flist[[15]]
+ tmp$type <- "field"
+ raw_data_light[[15]] <- tmp[-c(1), ]
+ 
+ tmp<- raw_data_light[[16]]
+ tmp$Name <- light_flist[[16]]
+ tmp$type <- "field"
+ raw_data_light[[16]] <- tmp[-c(17, 19, 21,22), ]
+ 
+ tmp<- raw_data_light[[17]]
+ tmp$Name <- light_flist[[17]]
+ tmp$type <- "field"
+ raw_data_light[[17]] <- tmp
+ 
+ ## get low photosynthesis curves and remove
+low_photosytheis <- c()
+for ( i in seq_along(good_i_values)){
+  index <- good_i_values[i]
+  if(max(as.numeric(as.matrix(raw_data_light[[index]]$Photo))) <= 2){
+    low_photosytheis <- c(low_photosytheis,unique(raw_data_light[[index]]$Name) )
+  }
+}
+
+light_curves <- list()
+for (i in seq_along(good_i_values)){
+  if(!(unique(raw_data_light[[good_i_values[i]]]$Name) %in% low_photosytheis)){
+    light_curves[[i]] <- raw_data_light[[good_i_values[i]]]
+  }
+}
+
+
+```
+
+## Plotting 
+```{r}
+
+
+
+
+for (i in seq_along(good_i_values)){
+  print(index)
+  index <- good_i_values[i]
+  #x_axis <-(as.numeric(raw_data_light[[index]]$Photo) * as.numeric(raw_data_light[[index]]$RH_S))/as.numeric(raw_data_light[[index]]$Ci)
+ ggplot() +
+  geom_point(data = raw_data_light[[index]], aes(y = as.numeric(as.matrix(raw_data_light[[index]]$Photo)) , x = raw_data_light[[index]]$PARi ))+
+   ggtitle(raw_data_light[[index]]$Name)
+}
+
+
+
+
+
+```
+
+
+

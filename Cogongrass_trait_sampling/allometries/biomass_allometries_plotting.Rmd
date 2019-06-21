@@ -1,0 +1,42 @@
+---
+title: "Biomass_allometries_plotting"
+author: "Tempest McCabe"
+date: "6/18/2019"
+output: html_document
+---
+
+
+## Setup
+
+```{r }
+#install.packages("googlesheets")
+library(dplyr)
+library(ggplot2)
+biomass <- read.csv("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/allometries/Cogongrass\ Biomass\ datasheet\ 2019.csv")
+```
+
+## Plots
+
+```{r}
+
+## Divide by sampling area
+biomass$Quadrat.area <- 30 # 30 cm^2
+biomass$fine_roots_corrected_area <- biomass$dry.biomass.fine.root.g / biomass$Soil.Core.cross.sectional.area.cm.2
+biomass$rhizome_corrected_area <- biomass$dry.biomass.rhizome/ biomass$Soil.Core.cross.sectional.area.cm.2
+biomass$leaves_corrected <- biomass$Dry.biomas.leaves.g/ biomass$Quadrat.area
+biomass$tillars_corrected <- biomass$dry.biomass.tiller/ biomass$Quadrat.area
+
+
+## calculate useful ratios
+
+fineroot2leaf <- fine_roots_corrected_area/ leaves_corrected
+below2aboveground <- (fine_roots_corrected_area + rhizome_corrected_area) / (leaves_corrected + tillars_corrected)
+
+plot(density(na.omit(fineroot2leaf)), main = "Ratios of fineroots to leaves")
+plot(density(na.omit(below2aboveground)), main = "Ratio of belowground biomass to aboveground")
+
+drought <- filter(biomass, biomass$Treatment == "Drought") %>%
+ggplot() +
+  geom_density(aes(x= dry.biomass.fine.root.g)) 
+
+```
