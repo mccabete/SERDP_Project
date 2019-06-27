@@ -14,7 +14,11 @@ library(ggplot2)
 light_flist <- list()
 light_flist <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Light_curves/")
 raw_data_light <- list()
+humidity_raw <- read.csv2("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/humidity_curves/tess-humidity-curve-1", skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
 
+humidity_1500 <- humidity_raw[humidity_raw$PARi >= 1430 & humidity_raw$PARi <= 1530, ]
+humidity_400 <- humidity_raw[humidity_raw$PARi >= 330 & humidity_raw$PARi <= 530, ]
+  
 problem_files <- c("tess-ex-leaf-2","tess-ex-leaf-3", "Light_curves_fitting.nb.html",  "Light_curves_fitting.Rmd",  "tess-ex-leaf-4",  "tess-feild-curve-7")
 
 good_i_values <- c()
@@ -88,6 +92,7 @@ for (i in seq_along(light_flist)){
 low_photosytheis <- c()
 for ( i in seq_along(good_i_values)){
   index <- good_i_values[i]
+  print(index)
   if(max(as.numeric(as.matrix(raw_data_light[[index]]$Photo))) <= 2){
     low_photosytheis <- c(low_photosytheis,unique(raw_data_light[[index]]$Name) )
   }
@@ -103,26 +108,260 @@ for (i in seq_along(good_i_values)){
 
 ```
 
-## Plotting 
+## Exploratory data analysis
+
+I am trying to asses the quality of my curves by plotting a line of g_s vs A/(c*(1+ VPD/D_0)). The notation is different, but is from equation 89 in the [model-write-up of ED2](https://www.geosci-model-dev-discuss.net/gmd-2019-45/gmd-2019-45.pdf). The Default value for c4 plants is  0.016, and can be found in the supplement. X in this code chunk referes to the result of A/ (c(1+ VPD/D_0)).
+
+
+Note, it looks like VPD returned from the licore is in kPa and that the ratio is ED2 is mol w : mol. If I manually change D to two, I get a better looking graph. 
+```{r}
+
+## Figure out how big this dataframe needs to be 
+test_length <- 0
+for (i in seq_along(light_curves)){
+  for (j in seq_along(light_curves[[i]]$Photo)){
+    test_length <- test_length + 1
+  }
+}
+print(test_length)
+
+stomatal_conductance <- matrix(data = NA, nrow = test_length+1, ncol = 4)
+stomatal_conductance <- as.data.frame(stomatal_conductance, stringsAsFactors = FALSE)
+names(stomatal_conductance) <- c("gs", "X", "type", "Name")
+
+
+#D_0 <- 0.016 in ED2 bu clearly the wrong units 
+D_0 <- 0.016 #When using kPa changed to 2
+## Make into one data table
+test_length <- 0
+for (i in seq_along(light_curves)){
+  for (j in seq_along(light_curves[[i]]$Photo)){
+    test_length <- test_length + 1
+    g_s <- as.numeric(light_curves[[i]]$Cond[j])
+    vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) - as.numeric(light_curves[[i]]$H2OR[j]) )
+    vpd <- vpd * 0.001
+    A <- as.numeric(light_curves[[i]]$Photo[j])
+    Ca <- as.numeric(light_curves[[i]]$CO2S[j])
+    name <-light_curves[[i]]$Name[1]
+    type <-light_curves[[i]]$type[1]
+    
+    ## calculation of X
+    X <- A/(Ca*(1+(vpd/D_0)))
+    stomatal_conductance$gs[test_length] <- g_s
+    stomatal_conductance$X[test_length] <- X
+    stomatal_conductance$type[test_length] <- type
+    stomatal_conductance$Name[test_length] <- name
+    stomatal_conductance$vpd <-  as.numeric(light_curves[[i]]$VpdL[j])
+    stomatal_conductance$A <- as.numeric(light_curves[[i]]$Photo[j])
+    stomatal_conductance$Ca <- as.numeric(light_curves[[i]]$CO2S[j])
+  }
+}
+
+stomatal_conductance <- stomatal_conductance[stomatal_conductance$Name != "tess-feild-9", ]
+
+```
+
+
+# Plotting
 ```{r}
 
 
+ggplot(data= stomatal_conductance) +
+  geom_point( aes(x = X, y = gs, color = Name))
 
 
-for (i in seq_along(good_i_values)){
-  print(index)
-  index <- good_i_values[i]
-  #x_axis <-(as.numeric(raw_data_light[[index]]$Photo) * as.numeric(raw_data_light[[index]]$RH_S))/as.numeric(raw_data_light[[index]]$Ci)
- ggplot() +
-  geom_point(data = raw_data_light[[index]], aes(y = as.numeric(as.matrix(raw_data_light[[index]]$Photo)) , x = raw_data_light[[index]]$PARi ))+
-   ggtitle(raw_data_light[[index]]$Name)
+## I was worried that tess-ex-leaf-5 was actually a ex curve with a feild curve on top of it. 
+
+for ( i in seq_along(light_curves)){
+  plot(x = light_curves[[i]]$Obs, y = light_curves[[i]]$Photo)
+title(light_curves[[i]]$Name[i])
 }
 
+## HUmidity curves 
+plot( x = humidity_1500$Obs, y = humidity_1500$Photo)
+title("Humidity Curve PAR = 1500")
+plot( x = humidity_400$Obs, y = humidity_400$Photo)
+title("Humidity Curve PAR = 400")
+
+```
+
+```{r}
+
+### Trying to just get the first 7 values of every file
+first_curve_only <- matrix(data = NA, nrow = length(light_curves)*7, ncol = 4)
+first_curve_only <- as.data.frame(first_curve_only, stringsAsFactors = FALSE)
+names(first_curve_only) <- c("gs", "X", "type", "Name")
+test_length <- 0
+for (i in seq_along(light_curves)){
+  for (j in 1:7){
+    test_length <- test_length + 1
+    g_s <- as.numeric(light_curves[[i]]$Cond[j])
+    vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) - as.numeric(light_curves[[i]]$H2OR[j]) )
+    vpd <- vpd * 0.001
+    A <- as.numeric(light_curves[[i]]$Photo[j])
+    Ca <- as.numeric(light_curves[[i]]$CO2S[j])
+    name <-light_curves[[i]]$Name[1]
+    type <-light_curves[[i]]$type[1]
+    
+    ## calculation of X
+    X <- A/(Ca*(1+(vpd/D_0)))
+    first_curve_only$gs[test_length] <- g_s
+    first_curve_only$X[test_length] <- X
+    first_curve_only$type[test_length] <- type
+    first_curve_only$Name[test_length] <- name
+    first_curve_only$vpd <-  as.numeric(light_curves[[i]]$VpdL[j])
+    first_curve_only$A <- as.numeric(light_curves[[i]]$Photo[j])
+    first_curve_only$Ca <- as.numeric(light_curves[[i]]$CO2S[j])
+  }
+}
+
+first_curve_only <- first_curve_only[first_curve_only$Name != "tess-feild-9", ]
+first_curve_only <- first_curve_only[first_curve_only$Name != "tess-ex-leaf-1", ]
+stomatal_conductance <- stomatal_conductance[stomatal_conductance$Name != "tess-ex-leaf-1",]
+
+ggplot(data= first_curve_only) +
+  geom_point( aes(x = X, y = gs, color = Name))+
+  ggtitle("Only First Curve")
+
+ggplot(data= stomatal_conductance) +
+  geom_point( aes(x = X, y = gs, color = Name))+
+  ggtitle("All points")
+
+```
+
+## Trying to get just the points on full curves
+```{r}
+full_curve <- matrix(data = NA, nrow = 72, ncol = 7)
+full_curve <- as.data.frame(full_curve, stringsAsFactors = FALSE)
+names(full_curve) <- c("gs", "X", "type", "Name")
+
+seven_good <- c("tess-feild-2", "tess-feld-light-curve-1", "tess-ex-leaf-1")
+forteen_good <- c( "tess-feild-3", "tess-feild-curve-8")
+nine_good <- c("tess-feild-curve-9")
+zero_good <- c("tess-feild-9")
+seven_to_forteen <- c("tess-ex-leaf-5")
 
 
+last_good_point <- NA
+test_length <- 0
+for (i in seq_along(light_curves)){
+  
+  first_good_point <- 1
+  if (light_curves[[i]]$Name[1] %in% seven_good){
+    last_good_point <- 7
+  }
+  if (light_curves[[i]]$Name[1] %in% forteen_good){
+    last_good_point <- 14
+  }
+  if (light_curves[[i]]$Name[1] %in% nine_good){
+    last_good_point <- 9
+  }
+  if (light_curves[[i]]$Name[1] %in% zero_good){
+    first_good_point <- 7
+    last_good_point <- 14
+  }
+  if (light_curves[[i]]$Name[1] %in% zero_good){
+    next
+  }
+  
+  for (j in first_good_point:last_good_point){
+    test_length <- test_length + 1
+    g_s <- as.numeric(light_curves[[i]]$Cond[j])
+    vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) - as.numeric(light_curves[[i]]$H2OR[j]) )
+    vpd <- vpd * 0.001
+    A <- as.numeric(light_curves[[i]]$Photo[j])
+    Ca <- as.numeric(light_curves[[i]]$CO2S[j])
+    name <-light_curves[[i]]$Name[1]
+    type <-light_curves[[i]]$type[1]
+    
+    ## calculation of X
+    X <- A/(Ca*(1+(vpd/D_0)))
+    full_curve$gs[test_length] <- g_s
+    full_curve$X[test_length] <- X
+    full_curve$type[test_length] <- type
+    full_curve$Name[test_length] <- name
+    full_curve$vpd[test_length] <-  as.numeric(light_curves[[i]]$VpdL[j])
+    full_curve$A[test_length] <- as.numeric(light_curves[[i]]$Photo[j])
+    full_curve$Ca[test_length] <- as.numeric(light_curves[[i]]$CO2S[j])
+  }
+}
+full_curve <- full_curve[full_curve$Name != "tess-feild-9", ]
+full_curve <- full_curve[full_curve$Name != "tess-ex-leaf-1", ]
+
+
+ggplot(data= first_curve_only) +
+  geom_point( aes(x = X, y = gs, color = Name))+
+  ggtitle("Only First Curve")
+
+ggplot(data = full_curve) + 
+  geom_point( aes(x = X, y = gs, color = Name))+
+  ggtitle("Full Curve - only feild curves")
+
+ggplot(data= stomatal_conductance) +
+  geom_point( aes(x = X, y = gs, color = Name))+
+  ggtitle("All points")
+```
+
+## Add in Humidity curves
+
+```{r}
+
+for (j in seq_along(humidity_1500)){
+   
+    g_s <- as.numeric(humidity_1500$Cond[j])
+    vpd <- (as.numeric(humidity_1500$H2OS[j]) - as.numeric(humidity_1500$H2OR[j]) )
+    vpd <- vpd * 0.001
+    A <- as.numeric(humidity_1500$Photo[j])
+    Ca <- as.numeric(humidity_1500$CO2S[j])
+    name <- "humidity_1500"
+    type <- "humidity"
+    
+    ## calculation of X
+    X <- A/(Ca*(1+(vpd/D_0)))
+    humidity_1500$gs[j] <- g_s
+    humidity_1500$X[j] <- X
+    humidity_1500$type[j] <- type
+    humidity_1500$Name[j] <- name
+    humidity_1500$vpd[j] <-  vpd
+    humidity_1500$A[j] <- as.numeric(humidity_1500$Photo[j])
+    humidity_1500$Ca[j] <- as.numeric(humidity_1500$CO2S[j])
+  }
+
+for (j in seq_along(humidity_400)){
+   
+    g_s <- as.numeric(humidity_400$Cond[j])
+    vpd <- (as.numeric(humidity_400$H2OS[j]) - as.numeric(humidity_400$H2OR[j]) )
+    vpd <- vpd * 0.001
+    A <- as.numeric(humidity_400$Photo[j])
+    Ca <- as.numeric(humidity_400$CO2S[j])
+    name <- "humidity_400"
+    type <- "humidity"
+    
+    ## calculation of X
+    X <- A/(Ca*(1+(vpd/D_0)))
+    humidity_400$gs[j] <- g_s
+    humidity_400$X[j] <- X
+    humidity_400$type[j] <- type
+    humidity_400$Name[j] <- name
+    humidity_400$vpd[j] <-  vpd
+    humidity_400$A[j] <- as.numeric(humidity_400$Photo[j])
+    humidity_400$Ca[j] <- as.numeric(humidity_400$CO2S[j])
+  }
+
+
+ggplot(data = full_curve) + 
+  geom_point( aes(x = X, y = gs, color = Name))+
+  #geom_point(data = humidity_1500, aes(jitter(x=humidity_1500$X), y = humidity_1500$gs, color = "humidity 1500"))+ 
+  geom_point(data = humidity_400, aes(x=humidity_400$X, y = humidity_400$gs, color = "Humidity 400"))+ 
+  ggtitle("Full Curve - only feild curves")
 
 
 ```
 
+## Trying to fit it in JAGS
+
+```{r}
+
+```
 
 
