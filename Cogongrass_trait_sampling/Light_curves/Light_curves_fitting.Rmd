@@ -9,6 +9,7 @@ output: html_notebook
 ## Libraries
 library(dplyr)
 library(ggplot2)
+library(rjags)
 
 ## Read in raw data
 light_flist <- list()
@@ -231,7 +232,7 @@ ggplot(data= stomatal_conductance) +
 
 ## Trying to get just the points on full curves
 ```{r}
-full_curve <- matrix(data = NA, nrow = 72, ncol = 7)
+full_curve <- matrix(data = NA, nrow = 72, ncol = 4)
 full_curve <- as.data.frame(full_curve, stringsAsFactors = FALSE)
 names(full_curve) <- c("gs", "X", "type", "Name")
 
@@ -280,7 +281,7 @@ for (i in seq_along(light_curves)){
     full_curve$X[test_length] <- X
     full_curve$type[test_length] <- type
     full_curve$Name[test_length] <- name
-    full_curve$vpd[test_length] <-  as.numeric(light_curves[[i]]$VpdL[j])
+    full_curve$vpd[test_length] <- vpd
     full_curve$A[test_length] <- as.numeric(light_curves[[i]]$Photo[j])
     full_curve$Ca[test_length] <- as.numeric(light_curves[[i]]$CO2S[j])
   }
@@ -288,6 +289,7 @@ for (i in seq_along(light_curves)){
 full_curve <- full_curve[full_curve$Name != "tess-feild-9", ]
 full_curve <- full_curve[full_curve$Name != "tess-ex-leaf-1", ]
 
+#full_curve <- full_curve[-c(5:7), ]
 
 ggplot(data= first_curve_only) +
   geom_point( aes(x = X, y = gs, color = Name))+
@@ -351,7 +353,7 @@ for (j in seq_along(humidity_400)){
 
 ggplot(data = full_curve) + 
   geom_point( aes(x = X, y = gs, color = Name))+
-  #geom_point(data = humidity_1500, aes(jitter(x=humidity_1500$X), y = humidity_1500$gs, color = "humidity 1500"))+ 
+  geom_point(data = humidity_1500, aes(jitter(x=humidity_1500$X), y = humidity_1500$gs, color = "humidity 1500"))+ 
   geom_point(data = humidity_400, aes(x=humidity_400$X, y = humidity_400$gs, color = "Humidity 400"))+ 
   ggtitle("Full Curve - only feild curves")
 
@@ -361,6 +363,53 @@ ggplot(data = full_curve) +
 ## Trying to fit it in JAGS
 
 ```{r}
+
+# get estimates of parameters from sensitivity analysis
+load("/Users/tess/Documents/work/cogognrass/sensitivity.results.NOENSEMBLEID.NPP.2017.2018.Rdata")
+stomatal_slope_average <- mean(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
+stomatal_slope_var <- var(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
+
+Stomtal_slope = "
+model{
+  for (i in 1:num_points){
+   D_0_corrected <- D_0 + 0.000001 # To avoid deviding by zero issues
+    #### Process Model
+    gs[i] <- min_conductance + m*X[i]
+    X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0_corrected)))
+    
+  }
+  
+  
+  #### Priors
+  D_0 ~ dgamma(1.19999, 90) # from ED2 default (0.016), and conversation with Mike (max)
+  m ~ dnorm(stomatal_slope_average, 1/stomatal_slope_var) # Roughtly get from sensitivity analysis 
+  min_conductance ~ dgamma(1.5, 10) #No clue. I looked at *Optimal stomatal behaviour around the world* which didn't have numbers for g_0 and argued that should just be minimun bound. I am doing a gamma with some varience. 
+}
+"
+
+temp_data <- dplyr::filter(full_curve, Name == "tess-feild-3")
+data <- list(num_points = length(temp_data$gs), 
+             A = temp_data$A,
+             Ca = temp_data$Ca, 
+             vpd = temp_data$vpd,
+             gs = temp_data$gs, stomatal_slope_var = stomatal_slope_var, stomatal_slope_average = stomatal_slope_average)
+
+nchain = 3
+init <- list()
+for(i in 1:nchain){
+  init[[i]] <- list(m = 0.5, D_0 = 0.016, min_conductance = 0.001)
+}
+
+
+j.model   <- jags.model (file = textConnection(Stomtal_slope),
+                             data = data,
+                             inits = init,
+                             n.chains = 3)
+
+jags.out   <- coda.samples (model = j.model,
+                            variable.names = c("m","min_conductance","D_0"),
+                                n.iter = 1000)
+plot(jags.out)
 
 ```
 
