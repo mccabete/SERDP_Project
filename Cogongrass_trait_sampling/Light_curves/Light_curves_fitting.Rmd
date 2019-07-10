@@ -268,7 +268,7 @@ for (i in seq_along(light_curves)){
   for (j in first_good_point:last_good_point){
     test_length <- test_length + 1
     g_s <- as.numeric(light_curves[[i]]$Cond[j])
-    vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) - as.numeric(light_curves[[i]]$H2OR[j]) )
+    vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) )# - as.numeric(light_curves[[i]]$H2OR[j]) )
     vpd <- vpd * 0.001
     A <- as.numeric(light_curves[[i]]$Photo[j])
     Ca <- as.numeric(light_curves[[i]]$CO2S[j])
@@ -369,30 +369,36 @@ load("/Users/tess/Documents/work/cogognrass/sensitivity.results.NOENSEMBLEID.NPP
 stomatal_slope_average <- mean(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
 stomatal_slope_var <- var(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
 
+
+run_stomatal_slope_fit <- function(temp_data, leaf_name, n.iter = 6000){
 Stomtal_slope = "
 model{
+  
+    D_0_corrected <- D_0 + 0.000001 # To avoid deviding by zero issues
   for (i in 1:num_points){
-   D_0_corrected <- D_0 + 0.000001 # To avoid deviding by zero issues
     #### Process Model
-    gs[i] <- min_conductance + m*X[i]
     X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0_corrected)))
-    
+    mu[i] <- min_conductance + m*X[i]
+    gs[i] ~ dnorm(mu[i], precision)
   }
   
   
   #### Priors
   D_0 ~ dgamma(1.19999, 90) # from ED2 default (0.016), and conversation with Mike (max)
   m ~ dnorm(stomatal_slope_average, 1/stomatal_slope_var) # Roughtly get from sensitivity analysis 
-  min_conductance ~ dgamma(1.5, 10) #No clue. I looked at *Optimal stomatal behaviour around the world* which didn't have numbers for g_0 and argued that should just be minimun bound. I am doing a gamma with some varience. 
+  min_conductance ~ dgamma(1.5, 10) ## No clue. I looked at *Optimal stomatal behaviour around the world* which didn't have numbers for g_0 and argued that should just be minimun bound. I am doing a gamma with some varience. 
+ precision ~ dgamma(1, 2) ## Guessing
 }
 "
 
-temp_data <- dplyr::filter(full_curve, Name == "tess-feild-3")
+
 data <- list(num_points = length(temp_data$gs), 
              A = temp_data$A,
              Ca = temp_data$Ca, 
              vpd = temp_data$vpd,
-             gs = temp_data$gs, stomatal_slope_var = stomatal_slope_var, stomatal_slope_average = stomatal_slope_average)
+             gs = temp_data$gs, 
+             stomatal_slope_var = stomatal_slope_var,
+             stomatal_slope_average = stomatal_slope_average)
 
 nchain = 3
 init <- list()
@@ -407,9 +413,50 @@ j.model   <- jags.model (file = textConnection(Stomtal_slope),
                              n.chains = 3)
 
 jags.out   <- coda.samples (model = j.model,
-                            variable.names = c("m","min_conductance","D_0"),
-                                n.iter = 1000)
-plot(jags.out)
+                            variable.names = c("m","min_conductance","D_0", "precision"),
+                                n.iter = n.iter)
+GBR <- gelman.plot(jags.out)
+burnin <- GBR$last.iter[tail(which(apply(GBR$shrink[,,2]>1.05,1,any)),1)+1]
+if(is.na(burnin)){
+  warning("GBR !< 1.05. Model may have failed to converge")
+  jags.burn <- jags.out
+  did_it_converge <- "convergence_failed_GBR_test" 
+}else{
+  did_it_converge <- "convergence_passed_GBR_test"
+  jags.burn <- window(jags.out,start=burnin, extend = FALSE)
+}
+  date_stamp <- Sys.time()
+  date_stamp <- format(date_stamp, "%Y%m%d")
+  file_name <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", date_stamp, ".", "Stomatal_slope_of",".",leaf_name,".", did_it_converge, ".","JAGS_run.Rdata", sep = "")
+  print(did_it_converge)
+  print(effectiveSize(jags.burn))
+  save(jags.burn, file = file_name )
+  #return(jags.burn)
+}
+
+### Testing function
+#temp_data <- dplyr::filter(full_curve, Name == "tess-feild-3")
+#run_stomatal_slop_fit(temp_data = temp_data, leaf_name = "tess-feild-3", n.iter = 6000 )
+#effectiveSize(jags.burn)
+
+## Loop over each file (corresponding to each leaf)
+leaves <- unique(full_curve$Name)
+leaves <- leaves[!is.na(leaves)]
+
+for ( i in seq_along(leaves)){
+  temp_data <- dplyr::filter(full_curve, Name == leaves[i])
+  run_stomatal_slop_fit(temp_data = temp_data, leaf_name = leaves[i], n.iter = 6000 )
+ 
+}
+
+```
+
+## How much agreement is there in what stomatal slope is? 
+- Look at different density estimates? 
+- compare to previous ED2 sensitivity output? 
+
+```{r}
+jags_list <- list.files()
 
 ```
 
