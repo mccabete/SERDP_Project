@@ -28,6 +28,7 @@ biomass$tillars_corrected <- biomass$dry.biomass.tiller/ biomass$Quadrat.area
 
 
 ## calculate useful ratios
+fine_roots_corrected_area <- 2*((2.5)^2)*pi
 
 fineroot2leaf <- fine_roots_corrected_area/ leaves_corrected
 below2aboveground <- (fine_roots_corrected_area + rhizome_corrected_area) / (leaves_corrected + tillars_corrected)
@@ -35,8 +36,190 @@ below2aboveground <- (fine_roots_corrected_area + rhizome_corrected_area) / (lea
 plot(density(na.omit(fineroot2leaf)), main = "Ratios of fineroots to leaves")
 plot(density(na.omit(below2aboveground)), main = "Ratio of belowground biomass to aboveground")
 
-drought <- filter(biomass, biomass$Treatment == "Drought") %>%
-ggplot() +
-  geom_density(aes(x= dry.biomass.fine.root.g)) 
+drought <- filter(biomass, biomass$Treatment == "Drought") 
+ambient <- filter(biomass, biomass$Treatment == "Ambient")
 
 ```
+
+# Exploring if the different treatments are different
+
+```{r}
+## Issue: Two catagorical variables, per carob allocation
+library(vegan)
+set.seed(2)
+community_matrix <- biomass[,c(1, 15:18)]
+community_matrix <- na.omit(community_matrix)
+treat <- na.omit(biomass)
+treat <- treat$Treatment
+example_NMDS <- metaMDS(community_matrix, # Our community-by-species matrix
+                     k=2, try = 100) # The number of reduced dimensions
+ordiplot(example_NMDS,type="n")
+orditorp(example_NMDS,display="sites",cex=1.25,air=0.01)
+ordihull(example_NMDS,groups=treat, label=F, col = c("blue", "red"))
+
+```
+
+```{r}
+
+below2aboveground_drought <- (drought$fine_roots_corrected_area + drought$rhizome_corrected_area) / (drought$leaves_corrected + drought$tillars_corrected)
+below2aboveground_amb <- (ambient$fine_roots_corrected_area + ambient$rhizome_corrected_area) / (ambient$leaves_corrected + ambient$tillars_corrected)
+
+plot(density(na.omit(below2aboveground_amb)), main = "Ratio of belowground biomass to aboveground", col = "blue")
+lines(density(na.omit(below2aboveground_drought)), col = "red")
+
+
+
+ks.test(below2aboveground_amb, below2aboveground_drought) # p-value = 0.04456
+
+#amb_test <- filter(bio, Treatment == "Ambient")
+#drought_test <- filter(bio, Treatment == "Drought")#
+
+#amb_test <- (amb_test$fine_root_fraction + #amb_test$rhizome_fraction)/amb_test$aboveground_fraction
+
+#drought_test <- (drought_test$fine_root_fraction + drought_test$rhizome_fraction)/ #drought_test$aboveground_fraction
+
+#ks.test(drought_test, amb_test)
+
+
+bio$above_below_ratio <- bio$fine_root_fraction + bio$rhizome_fraction/bio$aboveground_fraction
+amb_test <- filter(bio, Treatment == "Ambient")
+drought_test <- filter(bio, Treatment == "Drought")
+
+ks.test(amb_test$above_below_ratio, drought_test$above_below_ratio)
+
+plot(density(amb_test$above_below_ratio), main = "Ratio of belowground biomass to aboveground", col = "blue")
+lines(density( drought_test$above_below_ratio), col = "red")
+
+
+```
+
+```{r}
+Drew_cogongrass <- read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/SLA/CogonComplete-2.xls")
+
+Drew_cogongrass <- dplyr::filter(Drew_cogongrass,Drew_cogongrass$Treatment == "Ambient")
+
+comparisons <- c("Tillers","Leaf Area", "AVG HT", "RSR")
+
+pot_area <- 16.2^2
+drew_density <- (Drew_cogongrass$Tillers)/pot_area
+tess_density <- biomass$Number.of.Tillars/30
+
+## Tillar Density
+plot(density(tess_density), main = "Tiller Density", col = "dark green", ylim = c(0,6))
+lines(density(drew_density), col = "purple")
+```
+
+```{r}
+
+## AV hight
+tess_height <- rep(NA, length(biomass[1,]))
+
+for(i in 1:length(biomass[1,]) ){
+  av_tmp <- strsplit(as.character(biomass$Cogongrass.Hieghts.m..Subsample.[i]), split = ",")
+  av_tmp <- as.numeric(unlist(av_tmp))
+  av_tmp <- mean(av_tmp)
+  tess_height[i] <- av_tmp
+}
+
+
+plot(density(tess_height), col = "dark green",  ylim = c(0,4.2), xlim = c(0,1.5), main = "Average Hight")
+lines(density(Drew_cogongrass$`AVG HT`/100), col = "purple")
+```
+
+```{r}
+
+fineroot2leaf <- biomass$fine_roots_corrected_area/ biomass$leaves_corrected
+plot(density(na.omit(fineroot2leaf)), col = "dark green",  ylim = c(0,4.2), xlim = c(0,1.5), main = "Root:Shoot")
+lines(density(Drew_cogongrass$RSR), col = "purple")
+
+
+```
+
+## Carbon allocation
+
+```{r}
+bio <- na.omit(biomass)
+
+ambient <- na.omit(ambient)
+
+#average_biomass_total_drought <- mean(drought$fine_roots_corrected_area + bio$rhizome_corrected_area + bio$tillars_corrected + bio$leaves_corrected)
+
+#average_biomass_total_ambient <- mean(ambient$fine_roots_corrected_area + ambient$rhizome_corrected_area + ambient$tillars_corrected + ambient$leaves_corrected)
+
+bio$fine_root_fraction <- bio$fine_roots_corrected_area/sum(bio$fine_roots_corrected_area + bio$rhizome_corrected_area + bio$tillars_corrected + bio$leaves_corrected)
+bio$rhizome_fraction <- bio$rhizome_corrected_area/sum(bio$fine_roots_corrected_area + bio$rhizome_corrected_area + bio$tillars_corrected + bio$leaves_corrected)
+bio$aboveground_fraction <- (bio$tillars_corrected + bio$leaves_corrected)/ sum(bio$fine_roots_corrected_area + bio$rhizome_corrected_area + bio$tillars_corrected + bio$leaves_corrected)
+
+
+#average_fine_root <-  mean( bio$fine_roots_corrected_area/average_biomass_total )
+#average_rhizome <- mean( bio$rhizome_corrected_area/average_biomass_total )
+#average_beloground <- mean( (bio$fine_roots_corrected_area+bio$rhizome_corrected_area )/average_biomass_total)
+#average_aboveground <- mean((bio$tillars_corrected + bio$leaves_corrected)/average_biomass_total)
+
+## Drought
+#average_fine_root_d <-  mean( drought$fine_roots_corrected_area/average_biomass_total_drought )
+#average_rhizome_d <- mean( drought$rhizome_corrected_area/average_biomass_total_drought )
+#average_aboveground_d <- mean((drought$tillars_corrected + drought$leaves_corrected)/average_biomass_total_drought)
+
+
+
+## Ambient
+#average_fine_root_a <-  mean( ambient$fine_roots_corrected_area/average_biomass_total_ambient )
+#average_rhizome_a <- mean( ambient$rhizome_corrected_area/average_biomass_total_ambient )
+#average_aboveground_a <- mean((ambient$tillars_corrected + ambient$leaves_corrected)/average_biomass_total_ambient)
+
+ambient <- filter(bio, Treatment == "Ambient")
+drought <- filter(bio, Treatment == "Drought")
+
+
+lables <-c("Aboveground", "Rhizomes", "Fine Roots") 
+ambient <- na.omit(ambient)
+drought <- na.omit(drought)
+
+means_drought <-  c(mean(drought$aboveground_fraction), mean(drought$rhizome_fraction),  mean(drought$fine_root_fraction))
+
+means_am <-  c(mean(ambient$aboveground_fraction), mean(ambient$rhizome_fraction),  mean(ambient$fine_root_fraction))
+
+plotting_df <- cbind(means_am, means_drought)
+colnames(plotting_df) <- c("Ambient", "Drought")
+rownames(plotting_df) <- lables
+#plotting_df  <- t(plotting_df)
+plotting_df <- as.data.frame(plotting_df)
+#plotting_df$Treatment <- c("Ambient", "Drought")
+#plotting_df <- as.data.frame(plotting_df)
+
+ggplot(plotting_df)+
+  geom_col(aes(y = c(Ambient), x = rownames(plotting_df), position = "dodge"), fill = "blue")+ 
+  geom_col(aes(y = c(Drought), x = rownames(plotting_df), position = "dodge"), fill = "orange")+
+  ylab("Average Fraction of Biomass") +
+  xlab("")+
+  theme(element_blank(), axis.text.y = element_text(size = 14), axis.text.x = element_text(size = 20))
+
+#bio_test <- bio[,19:21]
+bio_factors <- matrix(nrow = 57, ncol = 3)
+bio_factors <- as.data.frame(bio_factors, stringsasfactors = FALSE)
+names(bio_factors) <- c("fraction", "type", "treatment")
+
+
+bio_factors$fraction <- c(bio$aboveground_fraction, bio$rhizome_fraction, bio$fine_root_fraction)
+bio_factors$type <- c(rep("Aboveground", length(bio$aboveground_fraction)), rep("Rizome", length(bio$rhizome_fraction)), rep("Fine Roots", length(bio$fine_root_fraction)) )
+bio_factors$treatment <- rep(bio$Treatment, 3)
+
+#bio_factors <- as.data.frame(bio_factors)
+
+
+p <- ggplot(bio_factors, aes(factor(type), fraction, fill = factor(treatment)))
+p <- p + geom_col(position = "dodge") +
+      theme(element_blank(),
+            axis.title.x = element_blank(),
+            axis.title.y = element_blank(), 
+            axis.text = element_text(size = 17), 
+            legend.title = element_blank(), 
+            legend.text = element_text(size = 17) 
+            )+
+            xlab("Biomass Fraction")
+p
+
+
+```
+

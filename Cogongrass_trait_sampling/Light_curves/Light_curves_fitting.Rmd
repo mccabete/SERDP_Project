@@ -94,7 +94,7 @@ low_photosytheis <- c()
 for ( i in seq_along(good_i_values)){
   index <- good_i_values[i]
   print(index)
-  if(max(as.numeric(as.matrix(raw_data_light[[index]]$Photo))) <= 2){
+  if(max(na.omit(as.numeric(as.matrix(raw_data_light[[index]]$Photo)))) <= 6){
     low_photosytheis <- c(low_photosytheis,unique(raw_data_light[[index]]$Name) )
   }
 }
@@ -111,7 +111,7 @@ for (i in seq_along(good_i_values)){
 
 ## Exploratory data analysis
 
-I am trying to asses the quality of my curves by plotting a line of g_s vs A/(c*(1+ VPD/D_0)). The notation is different, but is from equation 89 in the [model-write-up of ED2](https://www.geosci-model-dev-discuss.net/gmd-2019-45/gmd-2019-45.pdf). The Default value for c4 plants is  0.016, and can be found in the supplement. X in this code chunk referes to the result of A/ (c(1+ VPD/D_0)).
+I am trying to judge the quality of my curves by plotting a line of g_s vs A/(c*(1+ VPD/D_0)). The notation is different, but is from equation 89 in the [model-write-up of ED2](https://www.geosci-model-dev-discuss.net/gmd-2019-45/gmd-2019-45.pdf). The Default value for c4 plants is  0.016, and can be found in the supplement. X in this code chunk referes to the result of A/ (c(1+ VPD/D_0)).
 
 
 Note, it looks like VPD returned from the licore is in kPa and that the ratio is ED2 is mol w : mol. If I manually change D to two, I get a better looking graph. 
@@ -132,15 +132,15 @@ names(stomatal_conductance) <- c("gs", "X", "type", "Name")
 
 
 #D_0 <- 0.016 in ED2 bu clearly the wrong units 
-D_0 <- 0.016 #When using kPa changed to 2
+D_0 <- 0.016 * 100 #When using kPa changed to 2
 ## Make into one data table
 test_length <- 0
 for (i in seq_along(light_curves)){
   for (j in seq_along(light_curves[[i]]$Photo)){
     test_length <- test_length + 1
     g_s <- as.numeric(light_curves[[i]]$Cond[j])
-    vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) - as.numeric(light_curves[[i]]$H2OR[j]) )
-    vpd <- vpd * 0.001
+    vpd <- (as.numeric(light_curves[[i]]$VpdL[j]))
+    #vpd <- vpd * 0.001
     A <- as.numeric(light_curves[[i]]$Photo[j])
     Ca <- as.numeric(light_curves[[i]]$CO2S[j])
     name <-light_curves[[i]]$Name[1]
@@ -165,7 +165,7 @@ stomatal_conductance <- stomatal_conductance[stomatal_conductance$Name != "tess-
 
 # Plotting
 ```{r}
-
+library(ggplot2)
 
 ggplot(data= stomatal_conductance) +
   geom_point( aes(x = X, y = gs, color = Name))
@@ -179,12 +179,17 @@ title(light_curves[[i]]$Name[i])
 }
 
 ## HUmidity curves 
-plot( x = humidity_1500$Obs, y = humidity_1500$Photo)
+plot( x = humidity_1500$Obs, y = humidity_1500$gs)
 title("Humidity Curve PAR = 1500")
-plot( x = humidity_400$Obs, y = humidity_400$Photo)
+plot( x = humidity_400$Obs, y = humidity_400$gs)
 title("Humidity Curve PAR = 400")
 
 ```
+
+## Convert VPD from kPa to 
+Felicien found a paper that has the conversion factor just multiplied by 100. https://onlinelibrary.wiley.com/doi/epdf/10.1046/j.1365-3040.2002.00909.x
+
+
 
 ```{r}
 
@@ -197,8 +202,8 @@ for (i in seq_along(light_curves)){
   for (j in 1:7){
     test_length <- test_length + 1
     g_s <- as.numeric(light_curves[[i]]$Cond[j])
-    vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) - as.numeric(light_curves[[i]]$H2OR[j]) )
-    vpd <- vpd * 0.001
+    vpd <- (as.numeric(light_curves[[i]]$VpdL[j]))
+    #vpd <- vpd * 0.001
     A <- as.numeric(light_curves[[i]]$Photo[j])
     Ca <- as.numeric(light_curves[[i]]$CO2S[j])
     name <-light_curves[[i]]$Name[1]
@@ -269,7 +274,7 @@ for (i in seq_along(light_curves)){
     test_length <- test_length + 1
     g_s <- as.numeric(light_curves[[i]]$Cond[j])
     vpd <- (as.numeric(light_curves[[i]]$H2OS[j]) )# - as.numeric(light_curves[[i]]$H2OR[j]) )
-    vpd <- vpd * 0.001
+    #vpd <- vpd * 0.001
     A <- as.numeric(light_curves[[i]]$Photo[j])
     Ca <- as.numeric(light_curves[[i]]$CO2S[j])
     name <-light_curves[[i]]$Name[1]
@@ -293,14 +298,20 @@ full_curve <- full_curve[full_curve$Name != "tess-ex-leaf-1", ]
 
 ggplot(data= first_curve_only) +
   geom_point( aes(x = X, y = gs, color = Name))+
+  ylab("Stomatal Conductance")+
+  xlab("VPD corrected photosynthesis")+
   ggtitle("Only First Curve")
 
 ggplot(data = full_curve) + 
   geom_point( aes(x = X, y = gs, color = Name))+
-  ggtitle("Full Curve - only feild curves")
+  ylab("Stomatal Conductance")+
+  xlab("VPD corrected photosynthesis")+
+  ggtitle("Data used to estimate Stomatal Slope")
 
 ggplot(data= stomatal_conductance) +
   geom_point( aes(x = X, y = gs, color = Name))+
+  ylab("Stomatal Conductance")+
+  xlab("VPD corrected photosynthesis")
   ggtitle("All points")
 ```
 
@@ -311,8 +322,8 @@ ggplot(data= stomatal_conductance) +
 for (j in seq_along(humidity_1500)){
    
     g_s <- as.numeric(humidity_1500$Cond[j])
-    vpd <- (as.numeric(humidity_1500$H2OS[j]) - as.numeric(humidity_1500$H2OR[j]) )
-    vpd <- vpd * 0.001
+    vpd <- as.numeric(humidity_1500$VpdL[j])
+    #vpd <- vpd * 0.001
     A <- as.numeric(humidity_1500$Photo[j])
     Ca <- as.numeric(humidity_1500$CO2S[j])
     name <- "humidity_1500"
@@ -332,8 +343,8 @@ for (j in seq_along(humidity_1500)){
 for (j in seq_along(humidity_400)){
    
     g_s <- as.numeric(humidity_400$Cond[j])
-    vpd <- (as.numeric(humidity_400$H2OS[j]) - as.numeric(humidity_400$H2OR[j]) )
-    vpd <- vpd * 0.001
+    vpd <- (as.numeric(humidity_400$VpdL[j]))
+    #vpd <- vpd * 0.001
     A <- as.numeric(humidity_400$Photo[j])
     Ca <- as.numeric(humidity_400$CO2S[j])
     name <- "humidity_400"
@@ -374,17 +385,19 @@ run_stomatal_slope_fit <- function(temp_data, leaf_name, n.iter = 6000){
 Stomtal_slope = "
 model{
   
-    D_0_corrected <- D_0 + 0.000001 # To avoid deviding by zero issues
+    #D_0_corrected <- D_0 + 0.000001 # To avoid deviding by zero issues
+    D_0 <- 0.016
   for (i in 1:num_points){
     #### Process Model
-    X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0_corrected)))
+    #X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0_corrected)))
+    X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0)))
     mu[i] <- min_conductance + m*X[i]
     gs[i] ~ dnorm(mu[i], precision)
   }
   
   
   #### Priors
-  D_0 ~ dgamma(1.19999, 90) # from ED2 default (0.016), and conversation with Mike (max)
+  #D_0 ~ dgamma(1.19999, 90) # from ED2 default (0.016), and conversation with Mike (max)
   m ~ dnorm(stomatal_slope_average, 1/stomatal_slope_var) # Roughtly get from sensitivity analysis 
   min_conductance ~ dgamma(1.5, 10) ## No clue. I looked at *Optimal stomatal behaviour around the world* which didn't have numbers for g_0 and argued that should just be minimun bound. I am doing a gamma with some varience. 
  precision ~ dgamma(1, 2) ## Guessing
@@ -403,7 +416,7 @@ data <- list(num_points = length(temp_data$gs),
 nchain = 3
 init <- list()
 for(i in 1:nchain){
-  init[[i]] <- list(m = 0.5, D_0 = 0.016, min_conductance = 0.001)
+  init[[i]] <- list(m = 0.5,  min_conductance = 0.001) #, D_0 = 0.016)
 }
 
 
@@ -413,7 +426,7 @@ j.model   <- jags.model (file = textConnection(Stomtal_slope),
                              n.chains = 3)
 
 jags.out   <- coda.samples (model = j.model,
-                            variable.names = c("m","min_conductance","D_0", "precision"),
+                            variable.names = c("m","min_conductance", "precision"), #"D_0",
                                 n.iter = n.iter)
 GBR <- gelman.plot(jags.out)
 burnin <- GBR$last.iter[tail(which(apply(GBR$shrink[,,2]>1.05,1,any)),1)+1]
@@ -445,7 +458,7 @@ leaves <- leaves[!is.na(leaves)]
 
 for ( i in seq_along(leaves)){
   temp_data <- dplyr::filter(full_curve, Name == leaves[i])
-  run_stomatal_slop_fit(temp_data = temp_data, leaf_name = leaves[i], n.iter = 6000 )
+  run_stomatal_slope_fit(temp_data = temp_data, leaf_name = leaves[i], n.iter = 60000 )
  
 }
 
@@ -456,8 +469,54 @@ for ( i in seq_along(leaves)){
 - compare to previous ED2 sensitivity output? 
 
 ```{r}
-jags_list <- list.files()
+jags_list <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/")
+jags_list <- jags_list[grep("2020*", jags_list)]
+
+#for(i in seq_along(jags_list)){
+#  load()
+#}
+
 
 ```
 
+## Example plot with just one curve fit
+
+```{r}
+
+
+load(paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", jags_list[1], sep = ""))
+
+jags.mat <- as.matrix(jags.burn)
+
+slope <- quantile(jags.mat[,2], c(0.025, 0.5, 0.975))
+intercept <- quantile(jags.mat[,3], c(0.025, 0.5, 0.975))
+
+series <- seq(from = min(first_curve_only$X), to = max(first_curve_only$X) ,length.out= 42)
+  
+upper_line <- (series*slope[1]) + intercept[1]
+mean_line <-  (series*slope[2]) + intercept[2]
+lower_line <- (series*slope[3]) + intercept[3]
+
+ggplot(data= first_curve_only) +
+  geom_point( aes(x = X, y = gs, color = Name))+
+  geom_line( aes(y = upper_line, x = series), color = "black", size = 0.5 )+
+  geom_line(aes(y = mean_line, x = series), color = "black", size = 1 )+
+  geom_line(aes(y = lower_line, x = series), color = "black", size = 1 )+
+  ylab("Stomatal Conductance")+
+  xlab("VPD corrected photosynthesis")+
+  ggtitle("Only First Curve")
+
+#sanity_check <- glm(first_curve_only$gs ~ first_curve_only$X)
+#santiy_midline <- series*sanity_check$coefficients[2] + sanity_check$coefficients[1]
+
+#ggplot(data= first_curve_only) +
+  #geom_point( aes(x = X, y = gs, color = Name)) +
+  #geom_line( aes(x = series , y = santiy_midline), color = "black", size = 0.5 ) +
+  #ylab("Stomatal Conductance") +
+  #xlab("VPD corrected photosynthesis") +
+  #ggtitle("GLM fit line: Only First Curve")
+
+
+
+```
 
