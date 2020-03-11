@@ -295,6 +295,7 @@ full_curve <- full_curve[full_curve$Name != "tess-feild-9", ]
 full_curve <- full_curve[full_curve$Name != "tess-ex-leaf-1", ]
 
 #full_curve <- full_curve[-c(5:7), ]
+full_curve <- full_curve[,-c(1:4)]
 
 ggplot(data= first_curve_only) +
   geom_point( aes(x = X, y = gs, color = Name))+
@@ -380,42 +381,44 @@ load("/Users/tess/Documents/work/cogognrass/sensitivity.results.NOENSEMBLEID.NPP
 stomatal_slope_average <- mean(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
 stomatal_slope_var <- var(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
 
+## Query bety to get prior instead 
 
 run_stomatal_slope_fit <- function(temp_data, leaf_name, n.iter = 60000){
 Stomtal_slope = "
 model{
   
-   D_0_corrected <- D_0 + 0.00000001 # To avoid deviding by zero issues
+  #D_0_corrected <- D_0 + 0.00000001 # To avoid deviding by zero issues
    
   for (i in 1:num_points){
     #### Process Model
-    X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0_corrected)))
-    mu[i] <- min_conductance + m*X[i]
+    #X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0_corrected)))
+    mu[i] <- min_conductance + (m*X[i])
     gs[i] ~ dnorm(mu[i], precision)
   }
   
   
   #### Priors
-  D_0 ~ dexp(62.5) # from ED2 default (0.016), and conversation with Mike (max)
-  m ~ dnorm(stomatal_slope_average, 1/(stomatal_slope_var)) # Roughtly get from sensitivity analysis 
+  #D_0 ~ dexp(62.5) # from ED2 default (0.016), and conversation with Mike (max)
+  m ~ dnorm(stomatal_slope_average, (1/stomatal_slope_var)) # Roughtly get from sensitivity analysis 
   min_conductance ~ dexp(10000) ## No clue. I looked at *Optimal stomatal behaviour around the world* which didn't have numbers for g_0 and argued that should just be minimun bound. I am doing a gamma with some varience. My guess is minimum bound is pretty close to zero? # Turns out gamma has slicer density problems at the small numbers. 
- precision ~ dgamma(0.8, 2) ## Guessing
+ precision ~ dexp(2) ## Guessing
 }
 "
 
 
 data <- list(num_points = length(temp_data$gs), 
-             A = temp_data$A,
-             Ca = temp_data$Ca, 
-             vpd = temp_data$vpd,
-             gs = temp_data$gs, 
-             stomatal_slope_var = stomatal_slope_var,
-             stomatal_slope_average = 2) #stomatal_slope_average)
+             #A = temp_data$A,
+             #Ca = temp_data$Ca, 
+             #vpd = temp_data$vpd,
+             #gs = temp_data$gs, 
+             X = temp_data$X,
+             stomatal_slope_var = 0.6,
+             stomatal_slope_average = 3.28) # From LeBauer 2013 paper. Not full meta-analysis numbers
 
 nchain = 3
 init <- list()
 for(i in 1:nchain){
-  init[[i]] <- list(m = 21,  min_conductance = 0.0001, D_0 = 0.016, precision = 0.01)
+  init[[i]] <- list(m = 21,  min_conductance = 0.0001,  precision = 0.01) #D_0 = 0.016,
 }
 
 
@@ -425,7 +428,7 @@ j.model   <- jags.model (file = textConnection(Stomtal_slope),
                              n.chains = 3)
 
 jags.out   <- coda.samples (model = j.model,
-                            variable.names = c("m","min_conductance", "precision", "D_0"), #"D_0",
+                            variable.names = c("m","min_conductance", "precision"), #"D_0",
                                 n.iter = n.iter)
 GBR <- gelman.plot(jags.out)
 burnin <- GBR$last.iter[tail(which(apply(GBR$shrink[,,2]>1.05,1,any)),1)+1]
@@ -439,7 +442,7 @@ if(is.na(burnin) | rlang::is_empty(burnin)){
 }
   date_stamp <- Sys.time()
   date_stamp <- format(date_stamp, "%Y%m%d")
-  file_name <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", date_stamp, ".", "Stomatal_slope_of",".",leaf_name,".", did_it_converge, ".","JAGS_run_test_of_d_0.Rdata", sep = "")
+  file_name <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", date_stamp, ".", "Stomatal_slope_of",".",leaf_name,".", did_it_converge, ".","JAGS_run_huge_var.Rdata", sep = "")
   print(did_it_converge)
   print(effectiveSize(jags.burn))
   save(jags.burn, file = file_name )
@@ -455,11 +458,28 @@ if(is.na(burnin) | rlang::is_empty(burnin)){
 leaves <- unique(full_curve$Name)
 leaves <- leaves[!is.na(leaves)]
 
+
 for (i in seq_along(leaves)){
   temp_data <- dplyr::filter(full_curve, Name == leaves[i])
   run_stomatal_slope_fit(temp_data = temp_data, leaf_name = leaves[i], n.iter = 600000 )
- 
 }
+
+# for (i in seq_along(leaves)){
+#   temp_data <- dplyr::filter(full_curve, Name == leaves[i])
+#   mu <- rep(NA,length(temp_data$gs))
+#   #print(head(temp_data))
+#   for (j in 1:length(temp_data$gs)){
+#     X = temp_data$X
+#     m <- rnorm(1, stomatal_slope_average, stomatal_slope_var)
+#     min_conductance <- rexp(1,10000)
+#     mu[j] <- min_conductance + (m*X[j])
+#     #print(paste("m is ", m))
+#     #print(paste("mu is", mu[i]))
+#   }
+#   print(paste(leaves[i] ,"mu ", mean(mu)))
+#   #run_stomatal_slope_fit(temp_data = temp_data, leaf_name = leaves[i], n.iter = 600000 )
+# }
+
 
 ```
 
@@ -469,9 +489,9 @@ for (i in seq_along(leaves)){
 
 ```{r}
 jags_list <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/")
-jags_list <- jags_list[grep("20200304.*", jags_list)]
+jags_list <- jags_list[grep("20200309.*", jags_list)]
 jags_list <- jags_list[grep("*passed*", jags_list)]
-jags_list <- jags_list[grep("*test_of_d_0*", jags_list)]
+jags_list <- jags_list[grep("*huge_var*", jags_list)]
 
 #for(i in seq_along(jags_list)){
 #  load()
@@ -483,69 +503,83 @@ jags_list <- jags_list[grep("*test_of_d_0*", jags_list)]
 ## Example plot with just one curve fit
 
 ```{r}
-i = 3
+i = 2
 
 load(paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", jags_list[i], sep = ""))
 
-name <- gsub("20200304.Stomatal_slope_of.", "", jags_list[i])
-name <- gsub(".convergence_passed_GBR_test.JAGS_run_run_test_of_d_0.Rdata", "", name)
+name <- gsub("20200309.Stomatal_slope_of.", "", jags_list[i])
+name <- gsub(".convergence_passed_GBR_test.JAGS_run_huge_var.Rdata", "", name)
 
 jags.mat <- as.matrix(jags.burn)
 
-slope <- quantile(jags.mat[,2], c(0.025, 0.5, 0.975))
-intercept <- quantile(jags.mat[,3], c(0.025, 0.5, 0.975))
-D_0_quantiles <- quantile(jags.mat[,1], c(0.025, 0.5, 0.975))
-D_0_quantiles <- D_0_quantiles*100 # Unit conversion???
+slope <- quantile(jags.mat[,1], c(0.025, 0.5, 0.975))
+intercept <- quantile(jags.mat[,2], c(0.025, 0.5, 0.975))
+#D_0_quantiles <- quantile(jags.mat[,1], c(0.025, 0.5, 0.975))
+#D_0_quantiles <- D_0_quantiles*100 # Unit conversion???
+
+
 
 plotting_data <- full_curve
 ### Regenerate X with new D_0 value
 #X <- A/(Ca*(1+(vpd/D_0)))
-plotting_data$X_corrected <- plotting_data$A/(plotting_data$Ca*(1 + (plotting_data$vpd/D_0_quantiles[2]))) # Mean value
+# plotting_data$X_corrected <- plotting_data$A/(plotting_data$Ca*(1 + (plotting_data$vpd/D_0_quantiles[2]))) # Mean value
 
-plotting_data$X_lower <- plotting_data$A/(plotting_data$Ca*(1 + (plotting_data$vpd/D_0_quantiles[1]))) # lower bound
+# plotting_data$X_lower <- plotting_data$A/(plotting_data$Ca*(1 + (plotting_data$vpd/D_0_quantiles[1]))) # lower bound
+# 
+# plotting_data$X_upper <- plotting_data$A/(plotting_data$Ca*(1 + (plotting_data$vpd/D_0_quantiles[3]))) # lower bound
+series <- seq(from = min(na.omit(plotting_data$X)), to = max(na.omit(plotting_data$X)) ,length.out = length(na.omit(plotting_data$X)))
 
-plotting_data$X_upper <- plotting_data$A/(plotting_data$Ca*(1 + (plotting_data$vpd/D_0_quantiles[3]))) # lower bound
+# series <- seq(from = min(na.omit(plotting_data$X_corrected)), to = max(na.omit(plotting_data$X_corrected)) ,length.out = length(na.omit(plotting_data$X_corrected)))
 
-
-series <- seq(from = min(na.omit(plotting_data$X_corrected)), to = max(na.omit(plotting_data$X_corrected)) ,length.out = length(na.omit(plotting_data$X_corrected)))
-
-series_lower <- seq(from = min(na.omit(plotting_data$X_lower)), to = max(na.omit(plotting_data$X_lower)) ,length.out = length(na.omit(plotting_data$X_lower)))
-
-series_upper <- seq(from = min(na.omit(plotting_data$X_upper)), to = max(na.omit(plotting_data$X_upper)) ,length.out = length(na.omit(plotting_data$X_upper)))
+# series_lower <- seq(from = min(na.omit(plotting_data$X_lower)), to = max(na.omit(plotting_data$X_lower)) ,length.out = length(na.omit(plotting_data$X_lower)))
+# 
+# series_upper <- seq(from = min(na.omit(plotting_data$X_upper)), to = max(na.omit(plotting_data$X_upper)) ,length.out = length(na.omit(plotting_data$X_upper)))
 
 
   ## Build the confidence intervals (in both x and y)
 upper_line <- (series*slope[3]) + intercept[3]
-upper_line_D_0_lower <- (series_lower*slope[3]) + intercept[3] 
-upper_line_D_0_upper <- (series_upper*slope[3]) + intercept[3] 
+# upper_line_D_0_lower <- (series_lower*slope[3]) + intercept[3] 
+# upper_line_D_0_upper <- (series_upper*slope[3]) + intercept[3] 
 
 mean_line <-  (series*slope[2]) + intercept[2]
-mean_line_lower <- (series_lower*slope[2]) + intercept[2]
-mean_line_upper <- (series_upper*slope[2]) + intercept[2]
+# mean_line_lower <- (series_lower*slope[2]) + intercept[2]
+# mean_line_upper <- (series_upper*slope[2]) + intercept[2]
 
 lower_line <- (series*slope[1]) + intercept[1]
-lower_line_lower <- (series_lower*slope[1]) + intercept[1]
-lower_line_upper <- (series_upper*slope[1]) + intercept[1]
+# lower_line_lower <- (series_lower*slope[1]) + intercept[1]
+# lower_line_upper <- (series_upper*slope[1]) + intercept[1]
 
- ggplot(data = na.omit(plotting_data)) +
-  geom_point( aes(x = X_corrected, y = gs, color = Name)) +
-  geom_errorbarh(aes(xmin = X_lower, xmax = X_upper, y = gs, color = Name), alpha = 0.5)+
+plotting_data <- na.omit(plotting_data)
+ggplot(data = plotting_data) +
+  geom_point( aes(x = X, y = gs, color = Name)) +
   geom_line( aes(y = upper_line, x = series), color = "black", size = 0.5 , linetype = "dotted") +
-  geom_line(aes(y = upper_line_D_0_lower, x = series),color = "black", size = 0.5 , linetype = "dotted", alpha = 0.5 )+
-   geom_line(aes(y = upper_line_D_0_upper, x = series),color = "black", size = 0.5 , linetype = "dotted", alpha = 0.5 )+
-   
   geom_line(aes(y = mean_line, x = series), color = "black", size = 1 )+
-  geom_line(aes(y = mean_line_lower, x = series), color = "black", size = 1, alpha = 0.5)+
-  geom_line(aes(y = mean_line_upper, x = series), color = "black", size = 1, alpha = 0.5)+
   geom_line(aes(y = lower_line, x = series), color = "black", size = 0.5, linetype = "dashed" )+
-    geom_line(aes(y = lower_line_lower, x = series),color = "black", size = 0.5 , linetype = "dashed", alpha = 0.5 )+
-   geom_line(aes(y = lower_line_upper, x = series),color = "black", size = 0.5 , linetype = "dashed", alpha = 0.5 )+
   ylab("Stomatal Conductance")+
   xlab("VPD corrected photosynthesis")+
   ggtitle(paste("Fit from", name))
 
 
 
+#  ggplot(data = na.omit(plotting_data)) +
+#   geom_point( aes(x = X_corrected, y = gs, color = Name)) +
+#   geom_errorbarh(aes(xmin = X_lower, xmax = X_upper, y = gs, color = Name), alpha = 0.5)+
+#   geom_line( aes(y = upper_line, x = series), color = "black", size = 0.5 , linetype = "dotted") +
+#   geom_line(aes(y = upper_line_D_0_lower, x = series),color = "black", size = 0.5 , linetype = "dotted", alpha = 0.5 )+
+#    geom_line(aes(y = upper_line_D_0_upper, x = series),color = "black", size = 0.5 , linetype = "dotted", alpha = 0.5 )+
+#    
+#   geom_line(aes(y = mean_line, x = series), color = "black", size = 1 )+
+#   geom_line(aes(y = mean_line_lower, x = series), color = "black", size = 1, alpha = 0.5)+
+#   geom_line(aes(y = mean_line_upper, x = series), color = "black", size = 1, alpha = 0.5)+
+#   geom_line(aes(y = lower_line, x = series), color = "black", size = 0.5, linetype = "dashed" )+
+#     geom_line(aes(y = lower_line_lower, x = series),color = "black", size = 0.5 , linetype = "dashed", alpha = 0.5 )+
+#    geom_line(aes(y = lower_line_upper, x = series),color = "black", size = 0.5 , linetype = "dashed", alpha = 0.5 )+
+#   ylab("Stomatal Conductance")+
+#   xlab("VPD corrected photosynthesis")+
+#   ggtitle(paste("Fit from", name))
+# 
+# 
+# 
 sanity_check <- glm(full_curve$gs ~ full_curve$X)
 santiy_midline <- series*sanity_check$coefficients[2] + sanity_check$coefficients[1]
 
@@ -560,3 +594,38 @@ ggplot(data= na.omit(plotting_data)) +
 
 ```
 
+## Trying to just bootstrap glm
+
+```{r}
+
+
+```
+
+
+### Quickly testing nimble form of model
+
+```{r}
+library(nimble)
+
+modelCode <-  nimbleCode({
+  
+  ### Priors
+  #D_0 ~ dexp(62.5) # from ED2 default (0.016), and conversation with Mike (max)
+  m ~ dnorm(stomatal_slope_average, (1/stomatal_slope_var)) # Roughtly get from sensitivity analysis 
+  min_conductance ~ dexp(10000) # should be small
+ precision ~ dexp(2) ## Guessing
+  for(i in 1:n){
+    #D_0_corrected <- D_0 + 0.00000001 # To avoid deviding by zero issues
+  
+    #### Process Model
+    #X[i] <- A[i]/(Ca[i]*(1+(vpd[i]/D_0_corrected)))
+    mu[i] <- min_conductance + (m*X[i])
+    gs[i] ~ dnorm(mu[i], precision)
+
+  }
+})
+
+n = length
+
+
+```

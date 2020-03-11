@@ -1,0 +1,136 @@
+---
+title: "Root_respiration_trait"
+author: "Tempest McCabe"
+date: "3/5/2020"
+output: html_document
+---
+
+```{r}
+library(readxl)
+
+```
+
+
+## Read in files
+```{r}
+
+available_files <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/" )
+
+available_files <- available_files[grep("tess*",available_files )]
+#available_files <- available_files[-grep("*combo*",available_files )]
+excluded <- c("tess-soil-rhyzome-7", "tess-soil-rhyzome-13", "tess-soil-fine-root-7", "tess-soil-rhyzome-21", "tess-soil-rhyzome-3", "tess-soil-rhyzome-3", "tess-soil-rhyzome-4", "tess-soil-rhyzome-5", "tess-soil-rhyzome-6", "tess-soil-rhyzome-7", "tess-soil-rhyzome-8", "tess-soil-rhyzome-9","tess-soil-combo", "tess-soil-combo-7", "tess-soil-fine-root-11") # Rhyzome 3-9 probably just didn't transfer from licore properly. need to redo. "tess-soil-fine-root-11" is missing it's header for some reason
+available_files <- available_files[!(available_files %in% excluded)]
+
+fine_root_files <- available_files[grep("*fine*", available_files )]
+rhizome_files <- available_files[grep("*rhyzome*", available_files )]
+combo_files <- available_files[grep("*combo*", available_files)]
+
+# file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", available_files[13], sep = "")
+# 
+# test <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+
+```
+
+
+```{r}
+
+### Fine roots
+Cogongrass_Respiration_Biomass_2019 <- read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/Cogongrass_Respiration_Biomass_2019.xlsx")
+
+fine_roots <- matrix(ncol = 4, nrow = length(fine_root_files))
+fine_roots <- as_tibble(fine_roots)
+names(fine_roots) <- c("number", "mean", "sd", "N")
+
+for (i in seq_along(fine_root_files)){
+  file_name <- fine_root_files[i]
+  number <- as.numeric(gsub("[^0-9]", "", file_name))
+  mass <- Cogongrass_Respiration_Biomass_2019$`Fine Root Dry g`[Cogongrass_Respiration_Biomass_2019$Number == number] %>% 
+    as.numeric()
+  file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
+  tmp <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+  
+  Efflux <- na.omit(as.numeric(tmp$EFFLUX) / mass)
+  Efflux[Efflux >= 3 | Efflux <= -1] <- NA # Not possible, and/or a leak
+  Efflux <- na.omit(Efflux)
+  #plot(Efflux)
+  
+  fine_roots$number[i] <- number
+  fine_roots$mean[i] <- mean(Efflux)
+  fine_roots$sd[i] <- sd(Efflux)
+  fine_roots$N[i] <- length(Efflux)
+  
+}
+
+rhizomes <- matrix(ncol = 4, nrow = length(rhizome_files))
+rhizomes <- as_tibble(rhizomes)
+names(rhizomes) <- c("number", "mean", "sd", "N")
+
+### Note: Need to filter by change in EEflux over time/ over index. Right now "tess-soil-rhyzome-1" and "tess-soil-rhyzome-2"
+
+for(i in seq_along(rhizome_files)){
+  print(i)
+  file_name <- rhizome_files[i]
+  number <- as.numeric(gsub("[^0-9]", "", file_name))
+  mass <- Cogongrass_Respiration_Biomass_2019$`Rhizome Dry g`[Cogongrass_Respiration_Biomass_2019$Number == number] %>% 
+    as.numeric()
+  file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
+  tmp <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+  Efflux <- as.numeric(tmp$EFFLUX) / mass
+  Efflux[Efflux >= 3 | Efflux <= -1] <- NA # Not possible, and/or a leak
+  Efflux <- na.omit(Efflux)
+  plot(Efflux, main = file_name)
+  
+  rhizomes$number[i] <- number
+  rhizomes$mean[i] <- mean(Efflux)
+  rhizomes$sd[i] <- sd(Efflux)
+  rhizomes$N[i] <- length(Efflux)
+  
+}
+
+
+## Combo (might as well include if I'm lumping roots and rhizomes in together anyway)
+
+combos <- matrix(ncol = 4, nrow = length(combo_files))
+combos <- as_tibble(combos)
+names(combos) <- c("number", "mean", "sd", "N")
+
+
+for(i in seq_along(combo_files)){
+  print(i)
+  file_name <- combo_files[i]
+  number <- as.numeric(gsub("[^0-9]", "", file_name))
+  mass <- Cogongrass_Respiration_Biomass_2019$`combo dry g`[Cogongrass_Respiration_Biomass_2019$Number == number] %>% 
+    as.numeric()
+  file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
+  tmp <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+  Efflux <- as.numeric(tmp$EFFLUX) / mass
+  Efflux[Efflux >= 3 | Efflux <= -1] <- NA # Not possible, and/or a leak
+  Efflux <- na.omit(Efflux)
+  plot(Efflux, main = file_name)
+  
+  combos$number[i] <- number
+  combos$mean[i] <- mean(Efflux)
+  combos$sd[i] <- sd(Efflux)
+  combos$N[i] <- length(Efflux)
+  
+}
+
+
+
+```
+
+
+```{r}
+
+numbers <- c(na.omit(fine_roots$mean), na.omit(rhizomes$mean))
+n = length(na.omit(rhizomes$mean)) + length(na.omit(fine_roots$mean))
+## Chooseing a gamma distribution because it should be above zero 
+
+mu <- mean(numbers)
+var <- var(numbers)
+
+a <- (mu^2) / (var^2)
+b <- (mu) / (var^2)
+
+```
+
