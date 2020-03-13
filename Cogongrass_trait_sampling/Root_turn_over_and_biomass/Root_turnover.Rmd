@@ -1,0 +1,20 @@
+---
+title: "Root_turnover"
+author: "Tempest McCabe"
+date: "3/13/2020"
+output: html_document
+---
+This data was given to me by Catherine (Cathy) Fahey on 7/20/2018
+
+```{r}
+root_growth <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootgrowth.xlsx")
+
+root_length <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootlength.xlsx")
+
+## Step 1: Calculate the average root length at each site
+
+
+
+
+## Step 2: devide the root 
+```
