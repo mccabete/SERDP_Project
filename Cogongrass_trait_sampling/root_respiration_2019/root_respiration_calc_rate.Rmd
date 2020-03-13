@@ -126,7 +126,7 @@ numbers <- c(na.omit(fine_roots$mean), na.omit(rhizomes$mean))
 n = length(na.omit(rhizomes$mean)) + length(na.omit(fine_roots$mean))
 ## Chooseing a gamma distribution because it should be above zero 
 
-mu <- mean(numbers)
+mu <- mean(numbers) # in units of μmol CO2 m^-2 s^-2
 var <- var(numbers)
 
 a <- (mu^2) / (var^2)

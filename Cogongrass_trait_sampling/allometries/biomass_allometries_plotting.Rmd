@@ -25,6 +25,15 @@ biomass$fine_roots_corrected_area <- biomass$dry.biomass.fine.root.g / biomass$S
 biomass$rhizome_corrected_area <- biomass$dry.biomass.rhizome/ biomass$Soil.Core.cross.sectional.area.cm.2
 biomass$leaves_corrected <- biomass$Dry.biomas.leaves.g/ biomass$Quadrat.area
 biomass$tillars_corrected <- biomass$dry.biomass.tiller/ biomass$Quadrat.area
+biomass$above_to_below_ground_ratio <- (biomass$leaves_corrected + biomass$tillars_corrected) / (biomass$fine_roots_corrected_area + biomass$rhizome_corrected_area)
+biomass$root2shoot <- (biomass$fine_roots_corrected_area + biomass$rhizome_corrected_area) / (biomass$leaves_corrected + biomass$tillars_corrected)
+#biomass$fineroot2leaf <- (biomass$fine_roots_corrected_area + biomass$rhizome_corrected_area) / (biomass$leaves_corrected) # This definition of fine-root to leaf is inconsistant with leaf-length from Drew's data. Deleting fineroot2 leaf trait
+
+
+
+leaves_corrected <- biomass$leaves_corrected
+rhizome_corrected_area <- biomass$rhizome_corrected_area
+tillars_corrected <- biomass$tillars_corrected
 
 
 ## calculate useful ratios
@@ -38,6 +47,12 @@ plot(density(na.omit(below2aboveground)), main = "Ratio of belowground biomass t
 
 drought <- filter(biomass, biomass$Treatment == "Drought") 
 ambient <- filter(biomass, biomass$Treatment == "Ambient")
+
+## Unlisting hieghts to use as length traits
+drought_heights <- unlist(drought$Cogongrass.Hieghts.m..Subsample.)
+#drought_heights <- as.numeric(drought_heights)
+
+
 
 ```
 
@@ -94,33 +109,59 @@ lines(density( drought_test$above_below_ratio), col = "red")
 ```
 
 ```{r}
+library(readxl)
+
 Drew_cogongrass <- read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/SLA/CogonComplete-2.xls")
 
-Drew_cogongrass <- dplyr::filter(Drew_cogongrass,Drew_cogongrass$Treatment == "Ambient")
 
-comparisons <- c("Tillers","Leaf Area", "AVG HT", "RSR")
+## Changing units from (my assumption) of cm^2 : g to m^2 : kg which is the bety units
+Drew_cogongrass$leaf_area_m2 <- Drew_cogongrass$`Leaf Area` / 10000
+Drew_cogongrass$leaf_biomass_kg <- Drew_cogongrass$`SLA Biomass` / 1000
+Drew_cogongrass$SLA_unit_pecan <- Drew_cogongrass$leaf_area_m2 / Drew_cogongrass$leaf_biomass_kg
+Drew_cogongrass$ave_height_mm <- Drew_cogongrass$`AVG HT` * 10
 
-pot_area <- 16.2^2
-drew_density <- (Drew_cogongrass$Tillers)/pot_area
-tess_density <- biomass$Number.of.Tillars/30
+#Drew_cogongrass <- dplyr::filter(Drew_cogongrass,Drew_cogongrass$Treatment == "Ambient")
 
-## Tillar Density
-plot(density(tess_density), main = "Tiller Density", col = "dark green", ylim = c(0,6))
-lines(density(drew_density), col = "purple")
+# comparisons <- c("Tillers","Leaf Area", "AVG HT", "RSR")
+# 
+# pot_area <- 16.2^2
+# drew_density <- (Drew_cogongrass$Tillers)/pot_area
+# tess_density <- biomass$Number.of.Tillars/30
+# 
+# ## Tillar Density
+# plot(density(tess_density), main = "Tiller Density", col = "dark green", ylim = c(0,6))
+#lines(density(drew_density), col = "purple")
+
+shade <- filter(Drew_cogongrass, Treatment == "Shade")
+ambient_drew <- filter(Drew_cogongrass, Treatment == "Ambient")
+
 ```
 
 ```{r}
 
 ## AV hight
-tess_height <- rep(NA, length(biomass[1,]))
+tess_height_drought <- rep(NA, length(drought[1,])*3)
 
 for(i in 1:length(biomass[1,]) ){
-  av_tmp <- strsplit(as.character(biomass$Cogongrass.Hieghts.m..Subsample.[i]), split = ",")
+  av_tmp <- strsplit(as.character(drought$Cogongrass.Hieghts.m..Subsample.[i]), split = ",")
   av_tmp <- as.numeric(unlist(av_tmp))
-  av_tmp <- mean(av_tmp)
-  tess_height[i] <- av_tmp
+  #av_tmp <- mean(av_tmp)
+  tess_height_drought <- c(tess_height_drought, av_tmp)
 }
+rm(av_tmp)
+tess_height_drought <- na.omit(tess_height_drought)
+tess_height_drought <- tess_height_drought*1000 # From m to mm
 
+tess_height_am <- rep(NA, length(biomass[1,])*3)
+
+for(i in 1:length(ambient[1,]) ){
+  av_tmp <- strsplit(as.character(ambient$Cogongrass.Hieghts.m..Subsample.[i]), split = ",")
+  av_tmp <- as.numeric(unlist(av_tmp))
+  #av_tmp <- mean(av_tmp)
+  tess_height_am <- c(tess_height_am, av_tmp)
+}
+tess_height_am <- na.omit(tess_height_am)
+tess_height_am <- tess_height_am * 1000 # From m to mm
 
 plot(density(tess_height), col = "dark green",  ylim = c(0,4.2), xlim = c(0,1.5), main = "Average Hight")
 lines(density(Drew_cogongrass$`AVG HT`/100), col = "purple")
