@@ -7,14 +7,45 @@ output: html_document
 This data was given to me by Catherine (Cathy) Fahey on 7/20/2018
 
 ```{r}
+library(tidyverse)
+library(dplyr)
+
 root_growth <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootgrowth.xlsx")
+names(root_growth) <- c("rownumber", "Treatment", "Plot", "date", "Lengthperday", "invasion", "drought")
+
 
 root_length <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootlength.xlsx")
+#root_length$Plot_date <- paste(root_length$Plot, root_length$date) ## Really the grouping variable I want. Cludgey
 
 ## Step 1: Calculate the average root length at each site
+root_length_per_plot <- root_length %>% 
+      group_by(Plot, date, Treatment) %>%
+      summarise(sum_per_date = sum(`fine root length`)) #%>%
+      #group_by(Plot) %>%
+      #summarise(mean_per_plot = mean(sum_per_date))
 
+## Step 2: devide the daily root growth at each site by the  root length
+  # unique_root_length <- root_length_per_plot %>%
+  #       distinct_at(vars(sum_per_date,Treatment,-date), .keep_all = FALSE)
+  
+  #root_no_date <- root_length_per_plot[,-2] # take out date
+  #root_no_date <- unique(root_no_date) # 80 indicies instead of 84. Why?
+  #names(root_growth)
+  
+  #root_length_per_plot$scaled_root_turnover <- root_growth$Lengthperday/root_length_per_plot$sum_per_date
+  
+root_length_per_plot <- root_length_per_plot[as.character(root_length_per_plot$date) != "2014-07-17",] # root growth does include first measurement
 
+root_length_per_plot$root_turnover_day <- root_growth$Lengthperday / root_length_per_plot$sum_per_date 
+root_length_per_plot$root_turnover_day[root_length_per_plot$root_turnover_day == Inf] <- 0
 
+## Step 3: change daily rate to yearly rate
 
-## Step 2: devide the root 
+root_length_per_plot$root_turnover_year <- root_length_per_plot$root_turnover_day*365
+
+drought <- filter(root_length_per_plot, Treatment == "DI")
+ambient <- filter(root_length_per_plot, Treatment == "AI")
+
 ```
+
+Actually, I'm becoming uncomfortable with using the average through time for 
