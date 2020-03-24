@@ -295,7 +295,7 @@ full_curve <- full_curve[full_curve$Name != "tess-feild-9", ]
 full_curve <- full_curve[full_curve$Name != "tess-ex-leaf-1", ]
 
 #full_curve <- full_curve[-c(5:7), ]
-full_curve <- full_curve[,-c(1:4)]
+#full_curve <- full_curve[,-c(1:4)] # commented out on 3/20/2020
 
 ggplot(data= first_curve_only) +
   geom_point( aes(x = X, y = gs, color = Name))+
@@ -594,9 +594,36 @@ ggplot(data= na.omit(plotting_data)) +
 
 ```
 
-## Trying to just bootstrap glm
+## just running a glm
 
 ```{r}
+leaves <- unique(full_curve$Name)
+leaves <- leaves[!is.na(leaves)]
+
+#plotting_data <- full_curve
+
+#series <- seq(from = min(na.omit(plotting_data$X)), to = max(na.omit(plotting_data$X)) ,length.out = length(na.omit(plotting_data$X)))
+
+stomatal_slope_est <- rep(NA, length(leaves))
+
+# stomatal_slope_plot <- ggplot(data = na.omit(full_curve)) +
+#   geom_point( aes(x = X, y = gs, color = Name)) +
+#   #geom_line( aes(x = series , y = santiy_midline), color = "black", size = 0.5 ) +
+#   ylab("Stomatal Conductance") +
+#   xlab("VPD corrected photosynthesis") +
+#   ggtitle("GLM fit line")
+ 
+for (i in seq_along(leaves)){
+
+tmp <- filter(full_curve, Name == leaves[i])
+sanity_check <- glm(tmp$gs ~ tmp$X)
+stomatal_slope_est[i] <- sanity_check$coefficients[2]
+
+
+
+}
+
+
 
 
 ```

@@ -2,7 +2,9 @@
 title: "Root_turnover"
 author: "Tempest McCabe"
 date: "3/13/2020"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 This data was given to me by Catherine (Cathy) Fahey on 7/20/2018
 
@@ -13,14 +15,17 @@ library(dplyr)
 root_growth <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootgrowth.xlsx")
 names(root_growth) <- c("rownumber", "Treatment", "Plot", "date", "Lengthperday", "invasion", "drought")
 
+print(head(root_growth))
 
 root_length <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootlength.xlsx")
 #root_length$Plot_date <- paste(root_length$Plot, root_length$date) ## Really the grouping variable I want. Cludgey
 
+
+
 ## Step 1: Calculate the average root length at each site
 root_length_per_plot <- root_length %>% 
       group_by(Plot, date, Treatment) %>%
-      summarise(sum_per_date = sum(`fine root length`)) #%>%
+      summarise(sum_per_date = sum(`fine root length`)) #%>% 
       #group_by(Plot) %>%
       #summarise(mean_per_plot = mean(sum_per_date))
 
@@ -34,9 +39,10 @@ root_length_per_plot <- root_length %>%
   
   #root_length_per_plot$scaled_root_turnover <- root_growth$Lengthperday/root_length_per_plot$sum_per_date
   
-root_length_per_plot <- root_length_per_plot[as.character(root_length_per_plot$date) != "2014-07-17",] # root growth does include first measurement
+#root_length_per_plot <- root_length_per_plot[as.character(root_length_per_plot$date) != "2014-07-17",] # root growth does include first measurement
 
-root_length_per_plot$root_turnover_day <- root_growth$Lengthperday / root_length_per_plot$sum_per_date 
+#root_length_per_plot$root_turnover_day <- root_growth$Lengthperday / root_length_per_plot$sum_per_date ## Double check that matching happens 
+
 root_length_per_plot$root_turnover_day[root_length_per_plot$root_turnover_day == Inf] <- 0
 
 ## Step 3: change daily rate to yearly rate
@@ -48,5 +54,46 @@ ambient <- filter(root_length_per_plot, Treatment == "AI")
 
 ```
 
+## Double checking if daily growth is correct
 
+
+```{r}
+library(lubridate)
+plots <- unique(root_length_per_plot$Plot)
+root_length_per_plot$difference_in_days <- rep(NA, length(root_length_per_plot$Plot))
+
+root_length_per_plot <- arrange(root_length_per_plot, Plot)
+#iter <- 11
+#for (i in seq_along(plots)){
+  #tmp <- filter(root_length_per_plot, Plot == plots[i])
+  
+  #dates <- ymd(tmp$date) %>%
+   #        sort()
+
+  for (j in 2:length(root_length_per_plot$Plot)){
+    if(root_length_per_plot$date[j] == ymd("2014-07-17")){
+      root_length_per_plot$difference_in_days[j] <- NA
+    }else{
+      diff <- root_length_per_plot$date[j] - root_length_per_plot$date[j - 1]
+      diff_growth <- root_length_per_plot$sum_per_date[j] - root_length_per_plot$sum_per_date[j - 1]
+      diff_growth <- abs(diff_growth)
+      root_length_per_plot$difference_in_days[j] <- diff
+      root_length_per_plot$change_in_length[j] <- diff_growth
+    }
+  }
+  
+
+root_length_per_plot$length_per_day <- root_length_per_plot$change_in_length / root_length_per_plot$difference_in_days
+
+root_length_per_plot$root_turnover_day <- root_length_per_plot$length_per_day / root_length_per_plot$sum_per_date ## Double check that matching happens 
+
+root_length_per_plot$root_turnover_day[root_length_per_plot$root_turnover_day == Inf] <- 0
+
+## Step 3: change daily rate to yearly rate
+
+root_length_per_plot$root_turnover_year <- root_length_per_plot$root_turnover_day*365
+
+drought <- filter(root_length_per_plot, Treatment == "DI")
+ambient <- filter(root_length_per_plot, Treatment == "AI")
+```
 
