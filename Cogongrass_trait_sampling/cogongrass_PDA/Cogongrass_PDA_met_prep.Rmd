@@ -1,0 +1,56 @@
+---
+title: "Cogongrass_PDA_prep"
+author: "Tempest McCabe"
+date: "3/26/2020"
+output: html_document
+---
+
+Creating met drivers that match the level of precipitation exclusion that was seen by cogongrass under rain shelters. I rely heavly on Alba's 2016 decription of the Biven's experiment
+
+Alba, C., NeSmith, J. E., Fahey, C., Angelini, C., & Flory, S. L. (2017). Methods to test the interactive effects of drought and plant invasion on ecosystem structure and function using complementary common garden and field experiments. Ecology and Evolution, 7(5), 1442–1452. https://doi.org/10.1002/ece3.2729
+
+## Reading in Soil Moisture leves
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyverse)
+
+soil_moisture <- read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/cogongrass_PDA/Soil Moisture HS2 12 cm_all dates.xlsx")
+
+soil_moisture <- filter(soil_moisture, Treatment %in% c("A", "D")) %>% # Assuming Ambient and Drought, and that "AC" and "DC" are cogongrass invasion plots
+                  na.omit()
+  
+  
+drought <- filter(soil_moisture, Treatment == "D")
+ambient <- filter(soil_moisture, Treatment == "A")
+
+## There is a one-entry difference in the drought vs ambient. Need to join by dates
+
+sm_joined <- full_join(ambient, drought, by = c('Date', 'Sample Site'))
+
+
+linear_model <- glm(sm_joined$percent_VWC.y ~ sm_joined$percent_VWC.x)
+
+series <- seq(min(c(sm_joined$percent_VWC.x, sm_joined$percent_VWC.y)), max(c(sm_joined$percent_VWC.x, sm_joined$percent_VWC.y)), length = length(sm_joined$percent_VWC.x))
+
+ y_glm <- linear_model$coefficients[1] + (series*linear_model$coefficients[2])
+
+
+ggplot() +
+  geom_point(aes(x = sm_joined$percent_VWC.x, y = (sm_joined$percent_VWC.y))) +
+  geom_line(aes(x = series, y = y_glm), color = "red") + 
+  geom_line(aes(y = series, x = series), color = "green") +
+  ylab("Percent soil moisture in drought treatment") + 
+  xlab("Percent soil moisture in ambient treatment") + 
+  annotate("text", y = 50, x = 48, label = "1:1 line")
+
+```
+
+
+## Downloading ERA 5 data
+
+```{r}
+
+
+
+```
