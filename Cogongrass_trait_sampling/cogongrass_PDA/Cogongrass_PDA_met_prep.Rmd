@@ -14,8 +14,9 @@ Alba, C., NeSmith, J. E., Fahey, C., Angelini, C., & Flory, S. L. (2017). Method
 library(readxl)
 library(dplyr)
 library(tidyverse)
+library(ggplot2)
 
-soil_moisture <- read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/cogongrass_PDA/Soil Moisture HS2 12 cm_all dates.xlsx")
+soil_moisture <- read_excel("/projectnb/dietzelab/mccabete/SERDP_Project/Cogongrass_trait_sampling/cogongrass_PDA/Soil Moisture HS2 12 cm_all dates.xlsx")
 
 soil_moisture <- filter(soil_moisture, Treatment %in% c("A", "D")) %>% # Assuming Ambient and Drought, and that "AC" and "DC" are cogongrass invasion plots
                   na.omit()
@@ -29,11 +30,11 @@ ambient <- filter(soil_moisture, Treatment == "A")
 sm_joined <- full_join(ambient, drought, by = c('Date', 'Sample Site'))
 
 
-linear_model <- glm(sm_joined$percent_VWC.y ~ sm_joined$percent_VWC.x)
+linear_model <- glm(sm_joined$percent_VWC.y ~ 0 + sm_joined$percent_VWC.x) # .y are Drought treatment, forceing intercept at zero
 
 series <- seq(min(c(sm_joined$percent_VWC.x, sm_joined$percent_VWC.y)), max(c(sm_joined$percent_VWC.x, sm_joined$percent_VWC.y)), length = length(sm_joined$percent_VWC.x))
 
- y_glm <- linear_model$coefficients[1] + (series*linear_model$coefficients[2])
+ y_glm <- (series*linear_model$coefficients[1])
 
 
 ggplot() +
@@ -44,13 +45,82 @@ ggplot() +
   xlab("Percent soil moisture in ambient treatment") + 
   annotate("text", y = 50, x = 48, label = "1:1 line")
 
+
 ```
 
 
+So the intercept on this linear model clearly does not make sense, there should never be a time when the drought SM is wetter than the ambient, and if it is, it's either because the difference is within the error bounds of the measuring device, or the precip blocking is preventing evaporation in un expected ways. I am treating it as measurment error. 
+
 ## Downloading ERA 5 data
+note: I am on geo and extracting Hamze's pre-downloaded files. I currently only have 2013-2018. Files already exist and do not need to be re-extracted every time. 
 
 ```{r}
+# library(PEcAn.data.atmosphere)
+# library(tidyverse)
+# library(dplyr)
+# library(ncdf4, lib.loc = "/share/pkg.7/r/3.6.0/install/lib64/R/library")
+# library(xts)
+# source('~/mccabete/pecan/modules/data.atmosphere/R/extract_ERA5.R')
+# source('~/mccabete/pecan/modules/data.atmosphere/R/met2cf.ERA5.R')
+# 
+# ## Set up info
+# lat <- 29.628444 # Biven's arm
+# lon <- -82.354 # Biven's arm
+# in.prefix <- "ERA5_"
+# outfolder <- "/usr3/graduate/tmccabe/mccabete/SERDP_ERA5"
+# 
+# ERA5.files.path <- "/projectnb/dietzelab/hamzed/ERA5/Data/Ensemble/"
+# 
+# extract.nc.ERA5(lat, lon, in.path = ERA5.files.path, start_date = "2013/05/02", end_date = "2018/12/31", in.prefix = "ERA5_", outfolder = outfolder, newsite = "Bivens_Arm") # Missing 2019
+# 
 
 
+```
+
+
+## Reading in 
+```{r}
+library(ncdf4, lib.loc = "/share/pkg.7/r/3.6.0/install/lib64/R/library")
+library(easyNCDF, lib.loc = "/share/pkg.7/r/3.6.0/install/lib64/R/library")
+
+# Yearly files ERA5.1.2013.nc
+base_path <- "/usr3/graduate/tmccabe/mccabete/SERDP_ERA5"
+availible_years <- c(2013)
+outfolder <- "/usr3/graduate/tmccabe/mccabete/SERDP_modifide_ERA5"
+ensembles <- list.files("/usr3/graduate/tmccabe/mccabete/SERDP_ERA5")
+
+i = 1
+j = 1
+ensemble_number <- gsub("ERA5_Bivens_Arm_", "", ensembles[i])
+sink(file = "/usr3/graduate/tmccabe/mccabete/SERDP_modifide_ERA5/Modifide_met_log.txt", append = TRUE)
+#for(j in lenght(availible_years)) {
+nc_name <- paste("ERA5", ensemble_number,availible_years[j], "nc", sep = ".")
+file_path <- paste(base_path, ensembles[i], nc_name, sep = "/")
+
+nc <- ncdf4::nc_open(filename = file_path)
+precip <- ncvar_get(nc, "precipitation_flux")
+
+
+drought_precip <- (linear_model$coefficients[1]*precip) # transform to drought from precip
+
+
+### Fuck it. I'm copying the era5 data to the modifide foulder and than doing a nc_open and an nc_put and then closing it 
+test <- easyNCDF::NcReadDims(nc)
+test_vars <- easyNCDF::NcReadVarNames(nc)
+
+test_array <- array()
+#}
+
+
+```
+
+
+
+
+## Getting soil type 
+```{r}
+library(PEcAn.data.land)
+
+PEcAn.data.land::soil_params(clay = .3, sand = .67) # From Bivens info
 
 ```
