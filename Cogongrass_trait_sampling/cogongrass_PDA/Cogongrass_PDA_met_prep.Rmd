@@ -16,7 +16,8 @@ library(dplyr)
 library(tidyverse)
 library(ggplot2)
 
-soil_moisture <- read_excel("/projectnb/dietzelab/mccabete/SERDP_Project/Cogongrass_trait_sampling/cogongrass_PDA/Soil Moisture HS2 12 cm_all dates.xlsx")
+#soil_moisture <- read_excel("/projectnb/dietzelab/mccabete/SERDP_Project/Cogongrass_trait_sampling/cogongrass_PDA/Soil Moisture HS2 12 cm_all dates.xlsx")
+
 
 soil_moisture <- filter(soil_moisture, Treatment %in% c("A", "D")) %>% # Assuming Ambient and Drought, and that "AC" and "DC" are cogongrass invasion plots
                   na.omit()
