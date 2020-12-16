@@ -12,7 +12,7 @@ output: html_document
 #install.packages("googlesheets")
 library(dplyr)
 library(ggplot2)
-biomass <- read.csv("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/allometries/Cogongrass\ Biomass\ datasheet\ 2019.csv")
+biomass <- read.csv("~/fs/SERDP_Project/Cogongrass_trait_sampling/allometries/Cogongrass_Biomass_datasheet_2019.csv")
 ```
 
 ## Plots
@@ -52,6 +52,9 @@ ambient <- filter(biomass, biomass$Treatment == "Ambient")
 drought_heights <- unlist(drought$Cogongrass.Hieghts.m..Subsample.)
 #drought_heights <- as.numeric(drought_heights)
 
+ambient_fineroot2leaf <- ambient$fine_roots_corrected_area/ ambient$leaves_corrected
+drought_fineroot2leaf <- drought$fine_roots_corrected_area/ drought$leaves_corrected
+
 
 
 ```
@@ -79,7 +82,7 @@ ordihull(example_NMDS,groups=treat, label=F, col = c("blue", "red"))
 below2aboveground_drought <- (drought$fine_roots_corrected_area + drought$rhizome_corrected_area) / (drought$leaves_corrected + drought$tillars_corrected)
 below2aboveground_amb <- (ambient$fine_roots_corrected_area + ambient$rhizome_corrected_area) / (ambient$leaves_corrected + ambient$tillars_corrected)
 
-plot(density(na.omit(below2aboveground_amb)), main = "Ratio of belowground biomass to aboveground", col = "blue")
+plot(density(na.omit(below2aboveground_amb)), main = "Ratio of belowground biomass to aboveground",xlim = c(0, 1.75), col = "blue")
 lines(density(na.omit(below2aboveground_drought)), col = "red")
 
 
@@ -111,7 +114,7 @@ lines(density( drought_test$above_below_ratio), col = "red")
 ```{r}
 library(readxl)
 
-Drew_cogongrass <- read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/SLA/CogonComplete-2.xls")
+Drew_cogongrass <- read_excel("~/fs/SERDP_Project/Cogongrass_trait_sampling/SLA/CogonComplete-2.xls")
 
 
 ## Changing units from (my assumption) of cm^2 : g to m^2 : kg which is the bety units

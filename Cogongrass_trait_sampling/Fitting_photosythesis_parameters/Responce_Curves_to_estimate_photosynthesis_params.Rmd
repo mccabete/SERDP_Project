@@ -1,0 +1,319 @@
+---
+title: "Responce_Curves_from_Photosynthesis_vingette"
+author: "Tess McCabe"
+date: "11/4/2020"
+output: html_document
+---
+
+Note: This is a copy of the vignette of the photosynthesis module in pecan. I am editing it for my purposes here. 
+
+
+
+## Introduction
+
+This package is designed to fit the Farquhar, von Caemmerer, and Berry (1980) photosynthesis model [FvCB model] to leaf-level photosynthetic data. The statistical model generalizes the Hierarchial Bayesian approach described in Feng and Dietze (2013). The important advance that this approach provides is the ability to include covariates (e.g. leaf traits) in a mixed effects model describing key model parameters, $\alpha$ and $V_\textrm{cmax}$. At the moment the only supported random effect is a leaf-level effect, however fixed effects can be specified using standard R linear model notation, including interaction terms.
+
+This package includes functions for: loading photosynthetic data in the common LI-COR text-based format, performing visual QA/QC on that data, fitting the model to data, and generating diagnostic response-curve plots with confidence and predictive intervals. The diagnostic and QA/QC functions assume that data was collected as CO2 and light response curves (A-Ci and A-Q respectively). This assumption is not required for model fitting, so alternative sampling designs are allowed, as described by Dietze (2014).
+
+The version of the FvCB model used is described below, and at the moment does not include the TPU limitation term or temperature corrections (i.e. all data are assumed to be collected at the same leaf temperature, all parameters are specific to that temperature). It also assumes that electron transport rate, J, is a saturating function of $J_{\textrm{max}}$. 
+
+$$A_j = \frac{\alpha Q}{\sqrt{1+(\alpha^2 Q^2)/(J_\textrm{max}^2)}} \frac{C_i- \Gamma}{4 C_i + 8 \Gamma}$$
+
+$$A_c = V_{\textrm{cmax}} \frac{C_i - \Gamma}{C_i+ K_C (1+[O]/K_O) }$$
+
+$$A^{(m)} = min(A_j,A_c) - r$$
+
+$$A^{(o)} \sim N(A^{(m)},\tau)$$ 
+
+
+Parameter | Symbol     | Definition
+----------|------------|-----------
+alpha0    | $\alpha$   | quantum yield  (mol electrons/mole photon)
+Jmax      | $J_{\textrm{max}}$  | maximum electron transport
+cp        | $\Gamma$   | CO2 compensation point
+vmax0     | $V_{\textrm{cmax}}$ | maximum Rubisco capacity (a.k.a Vcmax)
+r         | $R_\textrm{d}$      | leaf respiration
+tau       | $\tau$     | residual precision
+q         | $Q$        | PAR
+pi        | $C_\textrm{i}$      | CO2 concentration
+
+The 'Parameter' above refers to how the variable is referenced in the code, and thus the name that will be returned by the statistical fit.
+
+The hierarchical version of this model is equivalent to the standard model except that $\alpha$ and $V_\textrm{cmax}$ are mixed effect linear models of any covariates specified. These linear models assume uninformative Normal priors, while the random effects and residual errors are assumed to have Gamma priors on their precisions. All other priors are as described below in the example code. The FvCB model is fit using JAGS via the _rjags_ package so outputs are _coda_ mcmc.list objects that can be assessed and manipulated using standard tools in the _coda_ package.
+
+## Install package from Github
+
+You should only have to do this once, and you only have to do this if you are downloading just this package separate from the rest of PEcAn
+
+```{r}
+if (!require("PEcAn.photosynthesis", character.only = TRUE)) {
+  devtools::install_github("PecanProject/pecan/modules/photosynthesis") 
+}
+#knitr::opts_chunk$set(cache = TRUE)
+```
+
+
+
+## Tess loading up files
+
+according to when I fit the photosynthesis curves, these are the curves that I thought were ok to use, most likely by filtering out the leaves where photosynthesis was too low. 
+
+```{r}
+file_names_tess <- c("tess-ex-leaf-5", "tess-feild-2", "tess-feild-3" , "tess-feild-curve-8",  "tess-feld-light-curve-1", "tess-feild-curve-9")       
+
+```
+
+## Load library and example data
+
+In this example we are using a set of files that are built into the package, but you could easily replace _filenames_ with vector of your own filenames, for example using _list.files_ to look up all the files in a directory
+```{r}
+library(PEcAn.photosynthesis)
+library(coda)
+source('~/pda/C4_photosythesis_parameter_fits.R')
+
+## Get list of LI-COR 6400 file names (ASCII not xls)
+#filenames <- system.file("extdata", paste0("flux-course-",rep(1:6,each=2),c("aci","aq")), package = "PEcAn.photosynthesis")
+filenames <- paste("/home/tmccabe/fs/SERDP_Project/Cogongrass_trait_sampling/Light_curves/",file_names_tess, sep = "/")
+
+## Load files to a list
+master = lapply(filenames, read_Licor)
+```
+
+
+Note, the photosynthesis module has a QAQC function, which involves picking out individual points as outliers. I did it, because I ran it with all the data, and it looked a little bit bad.  *Tess notes*  I only did AQ (light) curves, so am limiting my QAQC to light curves. 
+```{r}
+
+if(file.exists("~/pda/dat_quality_control.csv")){
+ load("~/pda/dat_quality_control.csv")
+} else{
+  for(i in 1:length(master)){
+    master[[i]] = Licor_QC(master[[i]], curve = c("AQ"))
+}
+
+#### Merge data into one data frame
+
+#Once data been's checked we'll merge it into one large data frame
+
+## QC adds a column and is messing up the rbind. Here is a check for which entries need additional columns
+#for(i in seq_along(master)){
+# has_no_qc_col <- rlang::is_empty(master[[i]]$QC)
+# if(has_no_qc_col){
+#   print(paste(master[[i]]$fname[1], "needs QC.", "i = ", i))
+# }
+# 
+#}
+
+#master[[5]]$QC <- rep(1, length(master[[5]]$Obs)) # are these the i's returned by the check? 
+#master[[6]]$QC <- rep(1, length(master[[6]]$Obs))
+
+dat <- do.call("rbind", master) #Need QC on all list elements. Not working? Need to put QC column on 5 and 6
+
+## if QC was done, remove both unchecked points and those that fail QC
+if("QC" %in% colnames(dat)){
+  dat <- dat[-which(dat$QC < 1),]  
+} else {
+  QC <- rep(1, nrow(dat))
+  dat <- cbind(dat, QC)
+}
+
+### Save dat so that QC decisions are documented
+save(dat, file = "~/pda/dat_quality_control.csv")
+ 
+} ## if
+
+
+
+
+```
+
+## Fit FvCB model to composite data
+
+If you only want to fit the model to the data from one leaf you could do this as
+
+```
+fit1 <- fitA(master[[1]])
+```
+
+Where the one required argument is the data frame of photosynthetic data. However, this code also allows use to fit the FvCB model to all of the data at once.  *Tess notes*:  I estimated the parameters useing all the data at once. 
+
+```{r}
+#if(file.exists("fit_c4.RData")){
+#  load("fit_c4.RData")
+#} else{
+#  fit_c4 <- fitA_c4(dat) ##A modifide function 
+#  save(fit_c4, file = "fit_c4.RData")
+#}
+
+
+```
+
+```{r}
+for( i in seq_along(master)){
+  leaf_data <- master[[i]]
+  leaf_data <- leaf_data[leaf_data$QC >= 1, ]
+  leaf_name <- unique(leaf_data$fname)
+  fit_leaf <- fitA_c4(leaf_data)
+  save(fit_leaf, file = paste(leaf_name, "c4_fit.Rdata", sep = "_" ))
+}
+```
+
+Because the MCMC can take a bit of time to run, in this example the code is written to load the existing fit if it exists, which just makes knitting the vignette more efficient.
+
+The returned object is a list with two mcmc.lists, "params" and "predict", and the text of the JAGS model that was fit. We can look at this model below:
+
+#```{r}
+#writeLines(fit$model)
+#```
+Note that the lines beginning with # are comments. Some of these comments are followed by specific tags, such as RLEAF.V and RLEAF.A, which are bits of code that will get turned on when we specify leaf random effects (see below).
+
+The 'params' mcmc.list contains the parameter estimate MCMC chains, which we can do standard MCMC diagnositics on. 
+
+```{r}
+flist <- list.files("/fs/data3/tmccabe/SERDP_Project/Cogongrass_trait_sampling/Fitting_photosythesis_parameters")
+flist <- flist[grep("tess", flist)]
+
+leaf_output <- list()
+for(i in seq_along(flist)){
+  load(flist[i])
+  leaf_output[[i]] <- fit_leaf
+}
+
+```
+
+
+```{r}
+# par(mfrow = c(2, 1))
+# plot(fit_c4$params, auto.layout = FALSE)    ## MCMC diagnostic plots
+# summary(fit_c4$params) ## parameter estimates  
+# gelman.plot(fit_c4$params, auto.layout = FALSE)
+# gelman.diag(fit_c4$params)
+```
+## Checking for convergenge useing gelman ruben statistics and effective sample size. 
+
+```{r, echo= false}
+
+
+leaf_burnin_output <- list()
+converge <- matrix(data = NA, nrow = nrow(dat) + 4,ncol = length(leaf_output))
+
+for(j in seq_along(leaf_output)){
+  c4_mcmc <- as.mcmc.list(leaf_output[[j]]$params)
+  c4_mcmc_predict <- as.mcmc.list(leaf_output[[j]]$predict)
+  GBR <- gelman.plot(c4_mcmc)
+  burnin <- GBR$last.iter[tail(which(apply(GBR$shrink[,,2]>1.05,1,any)),1)+1] ## Cut our burn-in by the gelman ruben statistic
+  if(rlang::is_empty(burnin)){
+    
+  }
+  c4_burn <- window(c4_mcmc, start = burnin)
+  param_sizes <- effectiveSize(c4_burn) # Actually pretty good sampling on parameters
+
+## Check predicted 
+  GBR <- gelman.plot(c4_mcmc_predict)
+  burnin <- GBR$last.iter[tail(which(apply(GBR$shrink[,,2]>1.05,1,any)),1)+1] ## Cut our burn-in by the gelman ruben statistic
+  c4_burn_pred <- window(c4_mcmc_predict, start = burnin)
+  sizes <- effectiveSize(c4_burn_pred) # Actually pretty good sampling on parameters
+
+  
+  leaf_burnin_output[[j]] <- list(c4_burn_pred, c4_burn) #leaf_burnin_output[leaf_index][[1]][params = 1, predictors = 2]
+
+ 
+  for( i in seq_along(sizes)){
+    converge[i,j] <- TRUE
+      if(sizes[i] < 5000){
+        print(paste(names(sizes), "has not converged for", flist[j]))
+        converge[i,j] <- FALSE
+      }
+   }
+    
+  for(i in 1:4){
+    tmp_index <- length(sizes) + i
+    converge[tmp_index,j] <- TRUE
+    if(param_sizes[i] < 5000){
+        print(paste(names(param_sizes), "has not converged for", flist[j]))
+        converge[tmp_index,j] <- FALSE
+    }
+  }
+    
+  
+}
+
+
+```
+The 'predict' object can be used to perform standard predictive diagnostics and to construct CI around curves
+
+```{r}
+# predicted vs observed plot
+# par(mfrow = c(1, 1))
+# mstats <- summary(c4_burn_pred)
+# dat$pmean <- as.numeric(mstats$statistics[grep("pmean", rownames(mstats$statistics)), 1])
+# 
+# leaves <- unique(dat$fname)
+# for( i in seq_along(leaves)){
+#   name <- leaves[i]
+#   plot(dat$pmean[dat$fname == name],
+#        dat$Photo[dat$fname == name],
+#        pch = "+", xlab = "Predicted A", ylab = "Observed A", main = name)
+# abline(0, 1, col = 2, lwd = 2)
+# }
+
+#  mstats <- summary()
+#  pmean <- as.numeric(mstats$statistics[grep("pmean", rownames(mstats$statistics)), 1])
+# 
+# par(mfrow = c(1, 1))
+# plot(dat$pmean, dat$Photo, pch = "+", xlab = "Predicted A", ylab = "Observed A")
+# abline(0,1,col=2,lwd=2)
+#   
+# ##   
+# plot_photo(dat, fit_c4, curve = c("AQ"))
+
+flist_names <- sub("_c4_fit.Rdata", "", flist)
+list_of_params <- list()
+
+
+for(i in seq_along(leaf_burnin_output)){
+  
+mstats <- summary(leaf_burnin_output[i][[1]][[1]])
+list_of_params[[i]] <- summary(leaf_burnin_output[i][[1]][[2]])
+pmean <- as.numeric(mstats$statistics[grep("pmean", rownames(mstats$statistics)), 1])
+
+sub_dat <- dplyr::filter(dat, fname == flist_names[i] )
+
+par(mfrow = c(1, 1))
+plot(pmean, sub_dat$Photo, pch = "+", xlab = "Predicted A", ylab = "Observed A", main = flist_names[i]) ## Note, if this breaks, it's probably because the file-names and thier contents are miss-aligned
+abline(0,1,col=2,lwd=2)
+
+}
+
+
+#list_of_params
+
+
+```
+
+## Extract covariate information
+Vcmax in bety requires temperature as a covariate (airT). Taking average temperature for each measure. 
+
+```{r}
+
+curves <- unique(dat$fname)
+
+temp_info <- matrix(ncol = 2, nrow = length(curves))
+temp_info <- as.data.frame(temp_info)
+colnames(temp_info) <- c("name", "mean_temp")
+
+
+for(i in seq_along(curves)){
+  tmp <- dat$Tair[dat$fname == curves[i]]
+  temp_info$name[i] <- curves[i]
+  temp_info$mean_temp[i] <- mean(na.omit(tmp))
+  
+}
+
+
+```
+
+
+
+
+
+

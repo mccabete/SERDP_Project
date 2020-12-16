@@ -1,0 +1,96 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+This is work I did associated with my AGU 2020 poster
+
+## scp-ing results from geo to test-pecan
+Ambient_30_short: 
+  - /fs/data2/output//PEcAn_1000014817/
+  - /projectnb/dietzelab/pecan.data/output//tmccabe/1000014817/out/
+Drought_30_short
+  - /fs/data2/output//PEcAn_1000014818/
+  - /projectnb/dietzelab/pecan.data/output//tmccabe/1000014818/out/
+  
+Ambient_15_long: 
+  - /fs/data2/output//PEcAn_1000014819/
+  - /projectnb/dietzelab/pecan.data/output//tmccabe/1000014819/out/
+Drought_15_long:
+  - /fs/data2/output//PEcAn_1000014820/
+  - /projectnb/dietzelab/pecan.data/output//tmccabe/1000014820/out/
+  
+15-ensemble finished first. 
+scp -r tmccabe@geo.bu.edu:/projectnb/dietzelab/pecan.data/output//tmccabe/1000014819/out/ /fs/data2/output//PEcAn_1000014819/out/
+
+Note: Getting a permissions error for writing .nc files? 
+sudo chmod -R 777 /fs/data2/output//PEcAn_1000014819/
+
+## Running met2model
+```{r, echo=FALSE}
+library(PEcAn.ED2)
+library(ncdf4)
+
+outfile <- "/fs/data2/output//PEcAn_1000014819/out/"
+run_ids <- list.files(outfile)
+
+for(i in seq_along(run_ids)){
+  file_path <- paste(outfile,"/", run_ids[i], sep = "")
+  model2netcdf.ED2(file_path, 
+                   29.628444, 
+                   -82.354, 
+                   "2013/05/01", 
+                   end_date = "2019/05/31",
+                   pft_names = NULL)
+  
+}
+
+# outdir = file_path
+# sitelat = 29.628444 
+# sitelon = -82.354 
+# start_date = "2013/01/01"
+# end_date = "2019/05/31"
+# pft_names = NULL
+
+outfile <- "/fs/data2/output//PEcAn_1000014820/out"
+run_ids <- list.files(outfile)
+
+for(i in seq_along(run_ids)){
+  file_path <- paste(outfile,"/", run_ids[i], sep = "")
+  model2netcdf.ED2(file_path, 
+                   29.628444, 
+                   -82.354, 
+                   "2013/05/01", 
+                   end_date = "2019/05/31",
+                   pft_names = NULL)
+  
+}
+```
+## Restarting Sensitivity and Uncertainty analysis
+
+
+```{r}
+library(PEcAn.all)
+bety = PEcAn.DB::betyConnect(php.config = "pecan/web/config.php")
+
+settings_Ambient <- PEcAn.settings::read.settings("/fs/data2/output//PEcAn_1000014819/pecan.CONFIGS.xml")
+#runModule.get.results(settings_Ambient)
+PEcAn.uncertainty::run.sensitivity.analysis(settings_Ambient)
+
+settings_drought <- PEcAn.settings::read.settings("/fs/data2/output//PEcAn_1000014820/pecan.CONFIGS.xml")
+#runModule.get.results(settings_drought)
+PEcAn.uncertainty::run.sensitivity.analysis(settings_drought)
+
+```
+
+## Plotting trait uncertainty Now that things are constrained!
+ I am just using the lolly-pop plot
+```{r}
+
+
+```
+
+## looking at if traits are different between drought vs not (ie just plot trait data)
+
+```{r}
+```
+

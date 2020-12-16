@@ -7,6 +7,7 @@ output: html_document
 
 ```{r}
 library(readxl)
+library(dplyr)
 
 ```
 
@@ -14,7 +15,7 @@ library(readxl)
 ## Read in files
 ```{r}
 
-available_files <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/" )
+available_files <- list.files("~/fs/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/" )
 
 available_files <- available_files[grep("tess*",available_files )]
 #available_files <- available_files[-grep("*combo*",available_files )]
@@ -35,18 +36,18 @@ combo_files <- available_files[grep("*combo*", available_files)]
 ```{r}
 
 ### Fine roots
-Cogongrass_Respiration_Biomass_2019 <- read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/Cogongrass_Respiration_Biomass_2019.xlsx")
+Cogongrass_Respiration_Biomass_2019 <- read_excel("~/fs/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/Cogongrass_Respiration_Biomass_2019.xlsx")
 
-fine_roots <- matrix(ncol = 4, nrow = length(fine_root_files))
+fine_roots <- matrix(ncol = 6, nrow = length(fine_root_files))
 fine_roots <- as_tibble(fine_roots)
-names(fine_roots) <- c("number", "mean", "sd", "N")
+names(fine_roots) <- c("number","file_name", "mean", "sd", "N", "rootT")
 
 for (i in seq_along(fine_root_files)){
   file_name <- fine_root_files[i]
   number <- as.numeric(gsub("[^0-9]", "", file_name))
   mass <- Cogongrass_Respiration_Biomass_2019$`Fine Root Dry g`[Cogongrass_Respiration_Biomass_2019$Number == number] %>% 
     as.numeric()
-  file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
+  file_path <- paste("~/fs/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
   tmp <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
   
   Efflux <- na.omit(as.numeric(tmp$EFFLUX) / mass)
@@ -55,15 +56,17 @@ for (i in seq_along(fine_root_files)){
   #plot(Efflux)
   
   fine_roots$number[i] <- number
+  fine_roots$file_name[i] <- file_name
   fine_roots$mean[i] <- mean(Efflux)
   fine_roots$sd[i] <- sd(Efflux)
   fine_roots$N[i] <- length(Efflux)
+  fine_roots$rootT[i] <- mean(na.omit(as.numeric(tmp$Tair)))
   
 }
 
-rhizomes <- matrix(ncol = 4, nrow = length(rhizome_files))
+rhizomes <- matrix(ncol = 6, nrow = length(rhizome_files))
 rhizomes <- as_tibble(rhizomes)
-names(rhizomes) <- c("number", "mean", "sd", "N")
+names(rhizomes) <- c("number","file_name", "mean", "sd", "N", "rootT")
 
 ### Note: Need to filter by change in EEflux over time/ over index. Right now "tess-soil-rhyzome-1" and "tess-soil-rhyzome-2"
 
@@ -73,26 +76,39 @@ for(i in seq_along(rhizome_files)){
   number <- as.numeric(gsub("[^0-9]", "", file_name))
   mass <- Cogongrass_Respiration_Biomass_2019$`Rhizome Dry g`[Cogongrass_Respiration_Biomass_2019$Number == number] %>% 
     as.numeric()
-  file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
+  
+  if(is.na(mass)){
+    rhizomes$number[i] <- number
+    rhizomes$file_name[i] <- file_name
+    rhizomes$mean[i] <- NA
+    rhizomes$sd[i] <- NA
+    rhizomes$N[i] <- NA
+    rhizomes$rootT[i] <- NA
+    
+    next
+  }
+  file_path <- paste("~/fs/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
   tmp <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
   Efflux <- as.numeric(tmp$EFFLUX) / mass
-  Efflux[Efflux >= 3 | Efflux <= -1] <- NA # Not possible, and/or a leak
+  #Efflux[Efflux >= 3 | Efflux <= -1] <- NA # Not possible, and/or a leak
   Efflux <- na.omit(Efflux)
   plot(Efflux, main = file_name)
   
   rhizomes$number[i] <- number
+  rhizomes$file_name[i] <- file_name
   rhizomes$mean[i] <- mean(Efflux)
   rhizomes$sd[i] <- sd(Efflux)
   rhizomes$N[i] <- length(Efflux)
+  rhizomes$rootT[i] <- mean(na.omit(as.numeric(tmp$Tair)))
   
 }
 
 
 ## Combo (might as well include if I'm lumping roots and rhizomes in together anyway)
 
-combos <- matrix(ncol = 4, nrow = length(combo_files))
+combos <- matrix(ncol = 6, nrow = length(combo_files))
 combos <- as_tibble(combos)
-names(combos) <- c("number", "mean", "sd", "N")
+names(combos) <- c("number","file_name", "mean", "sd", "N", "rootT")
 
 
 for(i in seq_along(combo_files)){
@@ -101,7 +117,7 @@ for(i in seq_along(combo_files)){
   number <- as.numeric(gsub("[^0-9]", "", file_name))
   mass <- Cogongrass_Respiration_Biomass_2019$`combo dry g`[Cogongrass_Respiration_Biomass_2019$Number == number] %>% 
     as.numeric()
-  file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
+  file_path <- paste("~/fs/SERDP_Project/Cogongrass_trait_sampling/root_respiration_2019/", file_name, sep = "")
   tmp <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
   Efflux <- as.numeric(tmp$EFFLUX) / mass
   Efflux[Efflux >= 3 | Efflux <= -1] <- NA # Not possible, and/or a leak
@@ -112,25 +128,28 @@ for(i in seq_along(combo_files)){
   combos$mean[i] <- mean(Efflux)
   combos$sd[i] <- sd(Efflux)
   combos$N[i] <- length(Efflux)
+  combos$rootT[i] <- mean(as.numeric(na.omit(tmp$Tair)))
   
 }
 
 
 
 ```
-
+## How I entered roots into bety cerca AGU 2020
+- I entered each fine-root measurement individually, providing the mean, sd, and tempurature (entered in bety as "airT")
+- rhizomes. 
 
 ```{r}
 
-numbers <- c(na.omit(fine_roots$mean), na.omit(rhizomes$mean))
-n = length(na.omit(rhizomes$mean)) + length(na.omit(fine_roots$mean))
+#numbers <- c(na.omit(fine_roots$mean), na.omit(rhizomes$mean))
+#n = length(na.omit(rhizomes$mean)) + length(na.omit(fine_roots$mean))
 ## Chooseing a gamma distribution because it should be above zero 
 
-mu <- mean(numbers) # in units of μmol CO2 m^-2 s^-2
-var <- var(numbers)
+#mu <- mean(numbers) # in units of μmol CO2 m^-2 s^-2
+#var <- var(numbers)
 
-a <- (mu^2) / (var^2)
-b <- (mu) / (var^2)
+#a <- (mu^2) / (var^2)
+#b <- (mu) / (var^2)
 
 ```
 
