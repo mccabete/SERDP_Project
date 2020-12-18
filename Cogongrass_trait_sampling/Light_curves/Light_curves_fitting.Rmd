@@ -582,17 +582,50 @@ ggplot(data = plotting_data) +
 # 
 sanity_check <- glm(full_curve$gs ~ full_curve$X)
 santiy_midline <- series*sanity_check$coefficients[2] + sanity_check$coefficients[1]
+con <- confint(sanity_check) # Get 95% confidence interval
+upper_line <- series*con[2,2] + con[1,2]
+lower_line <- series*con[2,1] + con[1,1]
 
-ggplot(data= na.omit(plotting_data)) +
-  geom_point( aes(x = X, y = gs, color = Name)) +
+clean_names <- gsub( "tess-","", full_curve$Name)
+clean_names <- gsub("ex-", "", clean_names)
+clean_names <- gsub("feild-", "", clean_names)
+clean_names <- gsub("feild-curve-", "", clean_names)
+clean_names <- gsub("feld-light-curve-", "", clean_names)
+clean_names <- gsub("leaf-", "", clean_names)
+clean_names <- gsub("curve-", "", clean_names)
+clean_names <- gsub("field-", "", clean_names)
+clean_names <- paste("Leaf Number", clean_names )
+
+full_curve$Leaf <- clean_names
+
+ggplot(data= na.omit(full_curve)) +
+  geom_point( aes(x = X, y = gs, color = Leaf)) +
   geom_line( aes(x = series , y = santiy_midline), color = "black", size = 0.5 ) +
+  geom_line( aes(x = series , y = upper_line), color = "black", size = 0.2 ) +
+  geom_line( aes(x = series , y = lower_line), color = "black", size = 0.2 ) +
   ylab("Stomatal Conductance") +
-  xlab("VPD corrected photosynthesis") +
-  ggtitle("GLM fit line: Only First Curve")
+  xlab("Humidity & Tempurature Corrected Photosynthesis") +
+  ggtitle("Stomatal Slope Estimation")
 
 
 
 ```
+
+## How does cogongrass's stomatal slope compare to switchgrass's? 
+
+
+```{r}
+switchgrass <- c(4.35, 3.93, 3.74,4.36)
+
+swith_dist <- rnorm(1000, mean(switchgrass ), sd(switchgrass ))
+con_dist <- rnorm(1000, 5.049882, 1.888467)
+
+plot(density(swith_dist))
+lines(density(con_dist))
+
+```
+
+
 
 ## just running a glm
 
@@ -619,10 +652,14 @@ tmp <- filter(full_curve, Name == leaves[i])
 sanity_check <- glm(tmp$gs ~ tmp$X)
 stomatal_slope_est[i] <- sanity_check$coefficients[2]
 
-
-
 }
 
+ggplot(data= na.omit(plotting_data)) +
+  geom_point( aes(x = X, y = gs, color = Name)) +
+  geom_line( aes(x = series , y = santiy_midline), color = "black", size = 0.5 ) +
+  ylab("Stomatal Conductance") +
+  xlab("VPD corrected photosynthesis") +
+  ggtitle("GLM fit line: Only First Curve")
 
 
 

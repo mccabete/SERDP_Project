@@ -1,0 +1,275 @@
+---
+title: "Stem_density_representation"
+author: "Tempest McCabe"
+date: "9/25/2020"
+output: html_document
+---
+
+```{r}
+library(rFIA)
+library(rgdal)
+library(sp)
+library(dplyr)
+
+
+```
+
+## Loading FIA data from a state
+```{r setup, include=FALSE}
+states <- "GA"
+full_states <- c("AL", "DE",  "FL", "GA","LA", "MD", "MS", "NC", "SC", "TN", "VA")# List of all states that intersect with the ecoregions our sites our from. Our sites are not from all of these states. Note District of columbia was excluded, for reasons i haven't diagnosed
+tables <- c('PLOT', 'TREE')#, 'COND')
+
+test <- rFIA::getFIA(states, common = TRUE, tables = tables,load = TRUE, dir = "/Users/tess/Documents/work/SERDP/", nCores = 1)
+#test
+
+## Drop columns that are only NA
+plot <- test$PLOT %>% dplyr::select_if(~!all(is.na(.))) # Has lat + lon data per plot, also elevation
+
+tree <- test$TREE  %>% dplyr::select_if(~!all(is.na(.))) # Has Diameter as DAI. IN INCHES
+tree <- tree[1:6414,] # Was 1676414,   112 cutting it down for local running.  
+
+#cond <- test$COND %>% dplyr::select_if(~!all(is.na(.))) # Has some carbon parameters like soil carbon but honestly could probably drop
+
+# load ecoregion
+eco_III_state <- sf::read_sf("/Users/tess/Documents/work/SERDP/us_eco_l3_state_boundaries/us_eco_l3_state_boundaries.shp", stringsAsFactors = FALSE) # I think eco_III$NA_L3CODE is the unique identifier I want
+eco_III <- sf::read_sf("/Users/tess/Documents/work/SERDP/us_eco_l3/us_eco_l3.shp", stringsAsFactors = FALSE) # I think eco_III$NA_L3CODE is the unique identifier I want
+
+#crs(eco_III) <- crs(sites)
+
+ecoregions <- c("8.5.3","8.3.5")
+
+eco_all_three <- eco_III[eco_III$NA_L3CODE %in% ecoregions,]
+eco_all_three_state <- eco_III_state[eco_III_state$NA_L3CODE %in% ecoregions,]
+eco_8.5 <- eco_III[eco_III$NA_L3CODE == "8.5.3",]
+eco_8.3 <- eco_III[eco_III$NA_L3CODE == "8.3.5",]
+
+sites <- sf::read_sf('/Users/tess/Documents/work/SERDP/dod-plot-locations/plot-locations.shp')
+
+```
+
+## Filter-out resamples (By seeing if PLOT has most recent MEAS_YR)
+```{r}
+
+## Note, in subsample, no repeat samples exist. Adding a dummy one in for testing. Works! 
+
+#dummy <- rep("Test", dim(tree)[2])
+#tree <- rbind(tree, dummy)
+#tree <- rbind(tree, dummy)
+#tree$PLOT[6415] <- "Tess_plot"
+#tree$INVYR[6415] <- "9999"
+
+#tree$PLOT[6416] <- "Tess_plot"
+#tree$INVYR[6416] <- "99999" # Fake "resample"
+
+tree$year_plot <- paste(tree$PLOT, tree$INVYR)
+tree$is_sampled_multiple_years <- rep(NA, length(tree$INVYR) )
+tree$is_max_year <- rep(NA, length(tree$INVYR) )
+for( i in seq_along(tree$PLOT)){
+ years <- unique(tree$INVYR[tree$PLOT == tree$PLOT[i]])
+ tree$is_sampled_multiple_years[i] <- (length(years) > 1 )
+ tree$is_max_year[i] <- max(years) == tree$INVYR[i]
+}
+tree <- tree[tree$is_max_year == TRUE, ]
+
+```
+
+## Sort by ecoregion. Note, this section WAS broken because I can't figure out why all the projections I'm trying are off. WAIT! It works out if I transform both to 4326 projection, and make sure LON is befor LAT. 
+
+need to operationalise now that i've tested the function
+```{r}
+
+library(sf)
+library(rlang)
+
+## Drop old measurments
+plot$year_plot <- paste(plot$PLOT, plot$INVYR)
+samples_to_keep <- unique(tree$year_plot)
+
+plot <- plot[plot$year_plot %in% samples_to_keep,]
+
+###
+
+
+
+#sp_test <- st_within(x = , y = eco_8.3, prepared = TRUE)
+
+## Go through and check site locations
+# cords_8.5 <- coordinates(eco_8.5)
+# cords_8.3 <- coordinates(eco_8.3)
+# 
+
+# 
+# plot(eco_8.5)
+# points(30.930536, -82.5398736)
+# 
+# point_test <- point.in.polygon(30.930536, -82.5398736, plot_loc)
+# point_test 
+# point_test <- st_intersection(plot_loc, eco_8.3)
+# point_test 
+# 
+# geom <- proj4string(eco_8.3)
+#plot_xy <- select(plot, LAT, LON)
+#plot_data <- select(plot, -LAT, -LON)
+
+#plot_sp <- SpatialPointsDataFrame(plot_xy, plot_data, proj4string = CRS("+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+#st_crs(plot_xy) <- st_crs(eco_8.3)
+#test_space <- st_within(plot.sp, eco_8.3, prepared = TRUE)
+
+#plot.sp <- st_as_sf(plot, coords = c("LON", "LAT"), crs = 4326) # 4326 is common apparently
+
+## Need to make seperate dataframe
+plot_spots <- as.data.frame(matrix(NA, ncol = 2, nrow = length(plot$LAT)))
+names(plot_spots) <- c("LON", "LAT")
+plot_spots$LON <- plot$LON
+plot_spots$LAT <- plot$LAT
+
+plot.sp <- st_as_sf(plot_spots, coords = c("LON", "LAT"),crs = 4326)
+
+# test_df <- as.data.frame(matrix(NA, ncol = 2, nrow = 3))
+# names(test_df) <- c("LON", "LAT")
+# test_df$LAT <- c(30.930536, 47.980536, 30.930536)
+# test_df$LON <- c(-82.5398736, -82.5498736, -82.5398736)
+# test_df_geom <- st_as_sf(test_df,coords = c("LON", "LAT"), crs = 4326 )
+# # 
+# # 
+# crs <- st_crs(eco_8.5$geometry)
+# test.sp <- st_as_sf(test_df_geom, coords = c("LON", "LAT"), crs = 4326) #Guessed 5070 from eco
+# test.sp <- st_transform(test.sp, crs = crs)
+# eco_8.5_trans <- st_transform(eco_8.5, crs = 4326)
+# 
+# test_space <- st_intersects(test.sp, eco_8.5_trans$geometry, prepared = TRUE)
+# test_space
+
+#library(ggplot2)
+#ggplot()+
+  #geom_sf(data = eco_8.5_trans$geometry) +
+  #geom_sf(data =test.sp$geometry)
+  
+  
+  
+  
+# test_df <- as.data.frame(matrix(NA, ncol = 2, nrow = 3))
+# names(test_df) <- c("LON", "LAT")
+# test_df$LAT <- c(30.930536, 47.980536, 30.930536)
+# test_df$LON <- c(-82.5398736, -82.5498736, -82.5398736)
+# 
+# 
+# crs <- st_crs(eco_8.5$geometry)
+# test.sp <- st_as_sf(test_df, coords = c("LON", "LAT"), crs = 4326) #Guessed 5070 from eco
+# #test.sp <- st_transform(test.sp, crs = crs)
+# eco_8.5_trans <- st_transform(eco_8.5, crs = 4326)
+# 
+# test_space <- st_intersects(test.sp, eco_8.5_trans$geometry, prepared = TRUE)
+# test_space
+
+#library(ggplot2)
+#ggplot()+
+  #geom_sf(data = eco_8.5_trans$geometry) +
+  #geom_sf(data =test.sp$geometry)
+
+
+#plot_xy <- as.matrix(plot_xy)
+# plot_loc <- sp::SpatialPointsDataFrame( coords = plot_xy, data = NA, proj4string = CRS(sp::proj4string(eco_8.3)))
+
+
+eco_8.5_trans <- st_transform(eco_8.5, crs = 4326)
+eco_8.3_trans <- st_transform(eco_8.3, crs = 4326)
+################ 
+ plot$is_in_eco_8.5 <- rep(FALSE, length(plot$LAT))
+ plot$is_in_eco_8.3 <- rep(FALSE, length(plot$LAT))
+indicator_8.5 <- st_intersects(plot.sp, eco_8.5_trans, prepared = TRUE)
+indicator_8.3 <- st_intersects(plot.sp, eco_8.3_trans, prepared = TRUE)
+
+for (i in seq_along(plot$LAT)) {
+  indexed_8.5 <- unlist(indicator_8.5[i])
+  indexed_8.3 <- unlist(indicator_8.3[i])
+  
+  if (!is_empty(indexed_8.5)) {
+    plot$is_in_eco_8.5[i] <- TRUE
+  }
+  if (!is_empty(indexed_8.3)) {
+    if (!is_empty(indexed_8.5)) {
+      print("ERROR, a point is in both ecoregions.")
+      break
+    }
+    plot$is_in_eco_8.3[i] <- TRUE
+  }
+}
+
+plot <- plot[(plot$is_in_eco_8.3 == TRUE | plot$is_in_eco_8.5 == TRUE), ]
+tree <- tree[tree$PLOT %in% plot$PLOT,] # Subset trees by plots in ecoregions
+```
+
+
+### Calculate density. Number of stems per area. 
+
+```{r}
+tree$plot_subplot <- paste(tree$PLOT, tree$SUBP)
+tree$is_big_tree <- tree$DIA >= 5.0
+unique_subplots <- unique(tree$plot_subplot)
+tree$density <- rep(NA, length(tree$PLT_CN))
+
+big_area <- pi*(48*12)^2 #Radius of 48 ft
+small_area <- pi*(6.8*12)^2 #Radius of 6.8 ft
+
+for(i in seq_along(unique_subplots)){
+  subplot <- tree[tree$plot_subplot == unique_subplots[i],]
+  small_trees <- subplot[subplot$is_big_tree == FALSE,] # Inches
+  big_trees <- subplot[subplot$is_big_tree == FALSE,] # Inches
+  
+  density_big_trees <- dim(big_trees)[1]/big_area
+  density_small_area <- dim(small_trees)[1]/small_area
+  
+  tree$density[(tree$plot_subplot == unique_subplots[i]) & (tree$is_big_tree == FALSE)] <- density_small_area
+  tree$density[(tree$plot_subplot == unique_subplots[i]) & (tree$is_big_tree == TRUE)] <- density_big_trees
+  
+}
+
+```
+
+Note about sampleing from FIA database documentation: https://www.fia.fs.fed.us/library/database-documentation/urban/dbDescription/Urban%20FIADB%20User%20Guides%20Database%20Description%20ver2-0%202020_09_08.pdf
+
+DIACurrent diameter. The current diameter, in inches, at the mother-tree level. Populated for live and standing dead trees 1.0 inch d.b.h./d.r.c. Trees with diameters ranging from 1.0-4.9 inches are measured on the 6.8-foot radius microplots. Trees with diameters 5.0 inches are measured on the 48-foot radius subplot
+
+## Test plot. I'm going to need to do a log axis
+
+```{r}
+tmp_check <- tree[tree$density > 0, ]
+ggplot() + 
+  geom_hex(data = tmp_check, aes(x = tmp_check$DIA, y = tmp_check$density))
+
+ggplot() + 
+  geom_point(data = tmp_check, aes(x = tmp_check$DIA, y = tmp_check$density)) + scale_x_continuous(trans="log")
+
+
+big_only <- tmp_check[tmp_check$is_big_tree == TRUE,]
+
+ggplot() + 
+  geom_hex(data = big_only, aes(x = DIA, y = density)) + scale_x_continuous(trans="log")
+
+```
+
+
+## Show range of dates this goes for
+
+
+
+
+
+## Questions
+- Did we count dead trees? I can't remember. If we didn't, I should sort those out of FIA data too. STATUSCD 1= alive, 2 = dead
+- DBH in our data: is it in inches or cm?
+- are the small stems to sensitive to time of sampleing? 
+
+
+
+
+
+
+```
+
+
+Note about sampleing from FIA database documentation: https://www.fia.fs.fed.us/library/database-documentation/urban/dbDescription/Urban%20FIADB%20User%20Guides%20Database%20Description%20ver2-0%202020_09_08.pdf
+
+DIACurrent diameter. The current diameter, in inches, at the mother-tree level. Populated for live and standing dead trees 1.0 inch d.b.h./d.r.c. Trees with diameters ranging from 1.0-4.9 inches are measured on the 6.8-foot radius microplots. Trees with diameters 5.0 inches are measured on the 48-foot radius subplot
