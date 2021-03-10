@@ -13,9 +13,9 @@ library(rjags)
 
 ## Read in raw data
 light_flist <- list()
-light_flist <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Light_curves/")
+light_flist <- list.files("/home/tmccabe/fs/SERDP_Project/Cogongrass_trait_sampling/Light_curves/")
 raw_data_light <- list()
-humidity_raw <- read.csv2("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/humidity_curves/tess-humidity-curve-1", skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
+humidity_raw <- read.csv2("/home/tmccabe/fs/SERDP_Project/Cogongrass_trait_sampling/humidity_curves/tess-humidity-curve-1", skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
 
 humidity_1500 <- humidity_raw[humidity_raw$PARi >= 1430 & humidity_raw$PARi <= 1530, ]
 humidity_400 <- humidity_raw[humidity_raw$PARi >= 330 & humidity_raw$PARi <= 530, ]
@@ -27,7 +27,7 @@ for (i in seq_along(light_flist)){
   print(i)
   if(!(light_flist[i] %in% problem_files)){
     good_i_values <-c(good_i_values, i)
-    file_path <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Light_curves/", light_flist[i], sep= "")
+    file_path <- paste("/home/tmccabe/fs/SERDP_Project/Cogongrass_trait_sampling/Light_curves/", light_flist[i], sep= "")
     raw_data_light[[i]] <- read.csv2(file_path, skip = 12, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
   }
 }
@@ -378,7 +378,7 @@ ggplot(data = full_curve) +
 ```{r}
 
 # get estimates of parameters from sensitivity analysis
-load("/Users/tess/Documents/work/cogognrass/sensitivity.results.NOENSEMBLEID.NPP.2017.2018.Rdata")
+load("/home/tmccabe/fs/cogognrass/sensitivity.results.NOENSEMBLEID.NPP.2017.2018.Rdata")
 stomatal_slope_average <- mean(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
 stomatal_slope_var <- var(sensitivity.results$cogongrass2$sensitivity.output$sa.samples$stomatal_slope)
 
@@ -443,7 +443,7 @@ if(is.na(burnin) | rlang::is_empty(burnin)){
 }
   date_stamp <- Sys.time()
   date_stamp <- format(date_stamp, "%Y%m%d")
-  file_name <- paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", date_stamp, ".", "Stomatal_slope_of",".",leaf_name,".", did_it_converge, ".","JAGS_run_huge_var.Rdata", sep = "")
+  file_name <- paste("/home/tmccabe/fs/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", date_stamp, ".", "Stomatal_slope_of",".",leaf_name,".", did_it_converge, ".","JAGS_run_huge_var.Rdata", sep = "")
   print(did_it_converge)
   print(effectiveSize(jags.burn))
   save(jags.burn, file = file_name )
@@ -489,7 +489,7 @@ for (i in seq_along(leaves)){
 - compare to previous ED2 sensitivity output? 
 
 ```{r}
-jags_list <- list.files("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/")
+jags_list <- list.files("/home/tmccabe/fs/SERDP_Project/Cogongrass_trait_sampling/Jags_output/")
 jags_list <- jags_list[grep("20200309.*", jags_list)]
 jags_list <- jags_list[grep("*passed*", jags_list)]
 jags_list <- jags_list[grep("*huge_var*", jags_list)]
@@ -506,7 +506,7 @@ jags_list <- jags_list[grep("*huge_var*", jags_list)]
 ```{r}
 i = 2
 
-load(paste("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", jags_list[i], sep = ""))
+load(paste("/home/tmccabe/fs/SERDP_Project/Cogongrass_trait_sampling/Jags_output/", jags_list[i], sep = ""))
 
 name <- gsub("20200309.Stomatal_slope_of.", "", jags_list[i])
 name <- gsub(".convergence_passed_GBR_test.JAGS_run_huge_var.Rdata", "", name)

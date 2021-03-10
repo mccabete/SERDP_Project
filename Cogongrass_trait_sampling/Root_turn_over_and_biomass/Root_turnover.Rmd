@@ -12,12 +12,12 @@ This data was given to me by Catherine (Cathy) Fahey on 7/20/2018
 library(tidyverse)
 library(dplyr)
 
-root_growth <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootgrowth.xlsx")
+root_growth <- readxl::read_excel("~/fs/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootgrowth.xlsx")
 names(root_growth) <- c("rownumber", "Treatment", "Plot", "date", "Lengthperday", "invasion", "drought")
 
 print(head(root_growth))
 
-root_length <- readxl::read_excel("/Users/tess/Documents/work/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootlength.xlsx")
+root_length <- readxl::read_excel("~/fs/SERDP_Project/Cogongrass_trait_sampling/Root_turn_over_and_biomass/rootlength.xlsx")
 #root_length$Plot_date <- paste(root_length$Plot, root_length$date) ## Really the grouping variable I want. Cludgey
 
 
