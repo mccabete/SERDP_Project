@@ -4,11 +4,15 @@
 
 **Personnel:**
 
-Project Manager (field research): Whalen Dillon
+PIs: Brian Allan, Mike Dietze, Luke flory
 
-Associate Project Manager (field research): Drew Hiatt
+Field Research Project Manager: Whalen Dillon
+
+Associate Field Research Project Manager (field research): Drew Hiatt
 
 Tick Pathogen Processing and Analysis: L. Page Fredericks
+
+Statistics Specialist: Allison Gardner
 
 Lead Research Technician: Steven Cabrera
 

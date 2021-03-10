@@ -3,3 +3,14 @@
 .RData
 .Ruserdata
 .httr-oauth
+=======
+*.DS_store
+*.hobo
+*.docx
+*.html
+*.pptx
+*.pdf
+*.tif
+*.tfw
+NLCD2011_LC_Florida/
+plot_data_report_files/
